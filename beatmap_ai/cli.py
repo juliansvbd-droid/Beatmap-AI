@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> None:
     tr.add_argument("--hidden", type=int, default=128, help="model width (GRU units)")
     tr.add_argument("--chunk-seconds", type=float, default=12.0,
                     help="length of the audio excerpts the model trains on")
+    tr.add_argument("--init", help="continue training from this checkpoint")
     tr.add_argument("--cache-dir")
     tr.add_argument("--device", help='e.g. "cuda" (NVIDIA or AMD ROCm), "cpu" or "directml"; '
                                      "default: GPU if available")
@@ -71,7 +72,7 @@ def main(argv: list[str] | None = None) -> None:
         train(args.data, args.output, epochs=args.epochs, steps_per_epoch=args.steps_per_epoch,
               batch_size=args.batch_size, lr=args.lr, hidden=args.hidden,
               chunk_seconds=args.chunk_seconds, cache_dir=args.cache_dir, device=args.device,
-              workers=args.workers, seed=args.seed)
+              workers=args.workers, init=args.init, seed=args.seed)
 
 
 if __name__ == "__main__":

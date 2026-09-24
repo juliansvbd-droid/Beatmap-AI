@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from .audio import FPS
 from .dataset import ChunkSampler, MapExample, build_examples, is_validation, spread
-from .model import BeatmapNet, beat_phase_features, save_checkpoint
+from .model import BeatmapNet, beat_phase_features, load_checkpoint, save_checkpoint
 
 
 def onset_f1(probs: np.ndarray, true_frames: np.ndarray, threshold: float, tolerance: int = 2) -> float:
@@ -78,6 +78,7 @@ def train(
     cache_dir: str | Path | None = None,
     device: str | None = None,
     workers: int = 1,
+    init: str | Path | None = None,
     seed: int = 0,
     log=partial(print, flush=True),
 ) -> Path:
@@ -99,7 +100,12 @@ def train(
         f"({len(train_ex)} train, {len(val_ex)} validation); device={device}")
 
     sampler = ChunkSampler(train_ex, int(chunk_seconds * FPS), seed=seed)
-    model = BeatmapNet(hidden=hidden).to(device)
+    if init is not None:  # Continue from an earlier checkpoint (its width wins).
+        model, _ = load_checkpoint(init)
+        model = model.to(device)
+        log(f"starting from {init}")
+    else:
+        model = BeatmapNet(hidden=hidden).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, max_lr=lr, total_steps=epochs * steps_per_epoch)

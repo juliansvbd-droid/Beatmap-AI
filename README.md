@@ -124,6 +124,8 @@ python scripts/fit_timing.py data/                      # optional: refit BPM de
 
 `--hidden` sets the model width (default 128) and `--chunk-seconds` the length of each
 training excerpt (default 12). A bigger model needs more data and more epochs.
+`--init beatmap_ai/models/rhythm.pt` continues training from the bundled model instead of
+starting from scratch.
 
 ## Development
 
