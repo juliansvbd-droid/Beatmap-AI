@@ -98,6 +98,33 @@ The data folder can hold `.osz` files, extracted song folders, or both. Your osu
 A GPU is used when one is available. For good results, train on a few hundred ranked
 maps in the style you want.
 
+## Training on your own GPU
+
+Training uses the GPU automatically when PyTorch can see one:
+
+* **NVIDIA:** the regular `pip install torch` (CUDA build).
+* **AMD on Linux:** install the ROCm build of PyTorch. Pick "ROCm" in the selector on
+  pytorch.org to get the `pip install` command. ROCm builds report the GPU as `cuda`, so
+  no extra flag is needed. Some RDNA3 cards need the environment variable
+  `HSA_OVERRIDE_GFX_VERSION=11.0.0`, including the RX 7700 XT/7800 XT (gfx1101).
+* **AMD on Windows:** either use WSL2 with the ROCm build, or
+  `pip install torch-directml` and pass `--device directml`. DirectML support is
+  experimental and untested.
+
+Check with `python -c "import torch; print(torch.cuda.is_available())"`. Then, for example:
+
+```bash
+python scripts/download_maps.py data/ --count 1500     # ranked maps to learn from
+beatmap-ai train data/ -o rhythm.pt --epochs 60 --steps-per-epoch 500 \
+    --batch-size 64 --hidden 192
+beatmap-ai evaluate data/ -m rhythm.pt                  # compare with the heuristics
+cp rhythm.pt beatmap_ai/models/rhythm.pt                # make it the default model
+python scripts/fit_timing.py data/                      # optional: refit BPM detection
+```
+
+`--hidden` sets the model width (default 128) and `--chunk-seconds` the length of each
+training excerpt (default 12). A bigger model needs more data and more epochs.
+
 ## Development
 
 ```bash

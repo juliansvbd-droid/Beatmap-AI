@@ -55,6 +55,15 @@ def evaluate(model: BeatmapNet, examples: list[MapExample], device: str) -> tupl
     return float(scores[i]), float(thresholds[i])
 
 
+def resolve_device(device: str | None):
+    """Default to the GPU when there is one. NVIDIA (CUDA) and AMD (ROCm) builds of
+    PyTorch both show up as "cuda"; "directml" selects torch-directml on Windows."""
+    if device == "directml":
+        import torch_directml
+        return torch_directml.device()
+    return device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+
 def train(
     data_dir: str | Path,
     out_path: str | Path,
@@ -72,7 +81,7 @@ def train(
     seed: int = 0,
     log=partial(print, flush=True),
 ) -> Path:
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_device(device)
     torch.manual_seed(seed)
     cache_dir = Path(cache_dir) if cache_dir else Path(data_dir) / ".beatmap_ai_cache"
     examples = build_examples(data_dir, cache_dir, workers=workers, log=log)
