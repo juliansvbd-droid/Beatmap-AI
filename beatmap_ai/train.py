@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -69,7 +70,7 @@ def train(
     device: str | None = None,
     workers: int = 1,
     seed: int = 0,
-    log=print,
+    log=partial(print, flush=True),
 ) -> Path:
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(seed)

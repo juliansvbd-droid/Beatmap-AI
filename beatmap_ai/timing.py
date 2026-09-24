@@ -33,7 +33,7 @@ FEATURE_NAMES = (
     "log2(bpm / 170)^2",
 )
 # Fitted by scripts/fit_timing.py (see the README for the accuracy on held-out songs).
-TEMPO_WEIGHTS = np.array([3.113, 1.721, 2.685, 1.006, -0.53, 0.523, -0.161, -2.557])
+TEMPO_WEIGHTS = np.array([2.745, 1.736, 2.826, 1.073, -0.349, 0.651, -0.137, -2.701])
 # The onset curve peaks this many seconds after the attack that mappers time notes to.
 ONSET_LATENCY = 0.058
 
