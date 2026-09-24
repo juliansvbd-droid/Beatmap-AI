@@ -1,0 +1,9 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.beatmap_ai_cache/
+*.pt
+*.osz
+*.mp3
+*.ogg
+*.wav

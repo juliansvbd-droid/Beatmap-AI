@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beatmap-ai"
+version = "0.1.0"
+description = "Generate osu! beatmaps from MP3 files"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy", "scipy", "librosa>=0.10", "soundfile>=0.12"]
+
+[project.optional-dependencies]
+train = ["torch>=2.0"]
+dev = ["pytest", "torch>=2.0"]
+
+[project.scripts]
+beatmap-ai = "beatmap_ai.cli:main"
+
+[tool.setuptools]
+packages = ["beatmap_ai"]
