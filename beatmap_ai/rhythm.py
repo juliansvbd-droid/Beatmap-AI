@@ -15,9 +15,10 @@ from scipy.ndimage import maximum_filter1d
 
 from .audio import FPS, AudioFeatures, sample_peak
 from .difficulty import DifficultyPreset
-from .timing import TimingEstimate
+from .timing import ONSET_LATENCY, TimingEstimate
 
 ACTIVE_RMS = 0.08  # loudness below which the music counts as silent
+ONSET_LAG_MS = ONSET_LATENCY * 1000.0  # onset-curve peaks come this long after the hit
 
 
 @dataclass
@@ -58,9 +59,10 @@ def make_tick_grid(timing: TimingEstimate, duration_ms: float, divisor: int) -> 
     return TickGrid(times=timing.offset_ms + index * tick_ms, index=index, divisor=divisor)
 
 
-def heuristic_scores(features: AudioFeatures, grid: TickGrid) -> np.ndarray:
+def heuristic_scores(features: AudioFeatures, grid: TickGrid, lag_ms: float = ONSET_LAG_MS,
+                     radius: int = 2) -> np.ndarray:
     """Score ticks by onset strength, favouring strong metrical positions."""
-    onset = sample_peak(features.onset, grid.times, radius=2)
+    onset = sample_peak(features.onset, grid.times + lag_ms, radius=radius)
     rms = sample_peak(features.rms, grid.times, radius=0)
     pos = grid.pos_in_beat
     weight = np.full(len(pos), 0.9, dtype=np.float32)
@@ -210,7 +212,7 @@ def plan_objects(
         ticks = np.flatnonzero(select_ticks(scores, np.ones_like(active), preset, threshold))
     if len(ticks) == 0:
         return []
-    intensity = np.clip(sample_peak(features.onset, grid.times, radius=2), 0.0, 1.0)
+    intensity = np.clip(sample_peak(features.onset, grid.times + ONSET_LAG_MS, radius=2), 0.0, 1.0)
 
     objects: list[PlannedObject] = []
     recovery = max(int(round(preset.slider_recovery_beats * preset.divisor)), 1)
