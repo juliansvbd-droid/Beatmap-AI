@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 
-from .audio import (AudioFeatures, TimingEstimate, compute_features, estimate_timing, fit_offset,
-                    load_audio, preview_time_ms)
+from .audio import AudioFeatures, compute_features, load_audio, preview_time_ms
 from .difficulty import DifficultyPreset, get_preset
 from .osu import Beatmap, TimingPoint, write_osz
 from .placement import Placer
 from .rhythm import PlannedObject, plan_objects
+from .timing import TimingEstimate, estimate_timing, fit_offset
 
 MAX_COMBO = 16
 BREAK_MIN_GAP = 5000.0

@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 
 from .audio import FPS
-from .dataset import ChunkSampler, MapExample, build_examples
+from .dataset import ChunkSampler, MapExample, build_examples, is_validation, spread
 from .model import BeatmapNet, beat_phase_features, save_checkpoint
 
 
@@ -64,27 +64,27 @@ def train(
     lr: float = 1e-3,
     hidden: int = 128,
     val_fraction: float = 0.1,
-    max_val_maps: int = 30,
+    max_val_maps: int = 40,
     cache_dir: str | Path | None = None,
     device: str | None = None,
+    workers: int = 1,
     seed: int = 0,
     log=print,
 ) -> Path:
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(seed)
     cache_dir = Path(cache_dir) if cache_dir else Path(data_dir) / ".beatmap_ai_cache"
-    examples = build_examples(data_dir, cache_dir, log=log)
+    examples = build_examples(data_dir, cache_dir, workers=workers, log=log)
     if not examples:
         raise SystemExit(f"no usable osu!standard beatmaps found under {data_dir}")
 
     # Split by song so validation measures generalisation to unseen audio.
-    songs = sorted({ex.mel_path for ex in examples})
-    rng = np.random.default_rng(seed)
-    rng.shuffle(songs)
-    n_val = int(len(songs) * val_fraction) if len(songs) > 1 else 0
-    val_songs = set(songs[:n_val])
-    train_ex = [ex for ex in examples if ex.mel_path not in val_songs]
-    val_ex = [ex for ex in examples if ex.mel_path in val_songs][:max_val_maps] or train_ex[:max_val_maps]
+    songs = {ex.mel_path for ex in examples}
+    train_ex = [ex for ex in examples if not is_validation(ex, val_fraction)]
+    val_ex = [ex for ex in examples if is_validation(ex, val_fraction)]
+    if not train_ex:
+        train_ex = val_ex
+    val_ex = spread(val_ex or train_ex, max_val_maps)
     log(f"{len(examples)} difficulties from {len(songs)} songs "
         f"({len(train_ex)} train, {len(val_ex)} validation); device={device}")
 

@@ -9,13 +9,14 @@ from __future__ import annotations
 import hashlib
 import tempfile
 import zipfile
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Iterator
 
 import numpy as np
 
-from .audio import FPS, compute_features, load_audio
+from .audio import FPS, AudioFeatures, compute_features, load_audio
 from .model import BeatGrid, beat_phase_features
 from .osu import Beatmap, parse_osu
 
@@ -33,35 +34,56 @@ class MapExample:
     density: float  # hit objects per second
 
 
-def iter_beatmaps(root: str | Path) -> Iterator[tuple[str, Beatmap, str, Callable[[Path], None]]]:
-    """Yield (name, beatmap, audio key, function that writes the audio to a path)."""
+@dataclass(frozen=True)
+class AudioSource:
+    """An audio file on disk, or a file inside an .osz archive."""
+
+    path: Path
+    member: str | None = None
+
+    @property
+    def key(self) -> str:
+        return f"{self.path}::{self.member}" if self.member else str(self.path)
+
+    def load_features(self) -> AudioFeatures:
+        if self.member is None:
+            return compute_features(load_audio(self.path))
+        with zipfile.ZipFile(self.path) as zf, tempfile.TemporaryDirectory() as tmp:
+            audio = Path(tmp) / ("audio" + Path(self.member).suffix)
+            audio.write_bytes(zf.read(self.member))
+            return compute_features(load_audio(audio))
+
+
+def iter_beatmaps(root: str | Path) -> Iterator[tuple[str, Beatmap, AudioSource]]:
+    """Yield (name, beatmap, audio source) for every .osu file under ``root``."""
     root = Path(root)
     for osz in sorted(root.rglob("*.osz")):
         try:
-            zf = zipfile.ZipFile(osz)
+            with zipfile.ZipFile(osz) as zf:
+                names = {n.lower(): n for n in zf.namelist()}
+                entries = [(n, zf.read(n)) for n in names.values() if n.lower().endswith(".osu")]
         except zipfile.BadZipFile:
             continue
-        names = {n.lower(): n for n in zf.namelist()}
-        for entry in names.values():
-            if not entry.lower().endswith(".osu"):
-                continue
-            bm = parse_osu(zf.read(entry).decode("utf-8", errors="replace"))
+        for entry, data in entries:
+            bm = parse_osu(data.decode("utf-8", errors="replace"))
             audio = names.get(bm.audio_filename.lower())
-            if audio is None:
-                continue
-
-            def extract(dest: Path, zf=zf, audio=audio) -> None:
-                dest.write_bytes(zf.read(audio))
-            yield f"{osz.name}/{entry}", bm, f"{osz.resolve()}::{audio}", extract
+            if audio is not None:
+                yield f"{osz.name}/{entry}", bm, AudioSource(osz.resolve(), audio)
     for osu_file in sorted(root.rglob("*.osu")):
         bm = parse_osu(osu_file.read_text(encoding="utf-8", errors="replace"))
         audio = osu_file.parent / bm.audio_filename
-        if not audio.is_file():
-            continue
+        if audio.is_file():
+            yield str(osu_file.relative_to(root)), bm, AudioSource(audio.resolve())
 
-        def copy(dest: Path, audio=audio) -> None:
-            dest.write_bytes(audio.read_bytes())
-        yield str(osu_file.relative_to(root)), bm, str(audio.resolve()), copy
+
+def song_id(audio_key: str) -> str:
+    return hashlib.sha1(audio_key.encode()).hexdigest()
+
+
+def note_density(bm: Beatmap) -> float:
+    """Hit objects per second between the first and the last object."""
+    times = [o.time for o in bm.hit_objects]
+    return len(times) / max((max(times) - min(times)) / 1000.0, 1.0) if times else 0.0
 
 
 def make_example(name: str, bm: Beatmap, mel_path: Path, n_frames: int) -> MapExample | None:
@@ -74,7 +96,6 @@ def make_example(name: str, bm: Beatmap, mel_path: Path, n_frames: int) -> MapEx
     frames = np.rint(times * FPS / 1000.0).astype(int)
     inside = (frames >= 0) & (frames < n_frames)
     is_slider = np.array([o.kind == "slider" for o in objects])
-    drain = (times.max() - times.min()) / 1000.0
     return MapExample(
         name=name,
         mel_path=mel_path,
@@ -82,41 +103,59 @@ def make_example(name: str, bm: Beatmap, mel_path: Path, n_frames: int) -> MapEx
         grid=grid,
         note_frames=frames[inside],
         slider_frames=frames[inside & is_slider],
-        density=len(objects) / max(drain, 1.0),
+        density=note_density(bm),
     )
 
 
-def build_examples(root: str | Path, cache_dir: str | Path, log=print) -> list[MapExample]:
-    """Parse every beatmap under ``root``, caching one mel spectrogram per audio file."""
+def _cache_mel(source: AudioSource, mel_path: Path) -> str | None:
+    """Compute and store the mel spectrogram; returns an error message on failure."""
+    try:
+        np.save(mel_path, source.load_features().mel.astype(np.float16))
+        return None
+    except Exception as exc:  # Corrupt or unsupported audio: skip the song.
+        error = f"{type(exc).__name__}: {exc}"
+        mel_path.with_suffix(".failed").write_text(error)  # Don't retry on every run.
+        return error
+
+
+def build_examples(root: str | Path, cache_dir: str | Path, workers: int = 1,
+                   log=print) -> list[MapExample]:
+    """Parse every beatmap under ``root``, caching one mel spectrogram per audio file
+    (computed in ``workers`` parallel processes)."""
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
+    maps = [(name, bm, source) for name, bm, source in iter_beatmaps(root) if bm.mode == 0]
+    mel_paths = {source: cache_dir / (song_id(source.key) + ".npy") for _, _, source in maps}
+    missing = [(s, p) for s, p in mel_paths.items()
+               if not p.exists() and not p.with_suffix(".failed").exists()]
+    if missing:
+        log(f"computing spectrograms for {len(missing)} songs")
+        with ProcessPoolExecutor(workers) as pool:
+            for (source, _), error in zip(missing, pool.map(_cache_mel, *zip(*missing))):
+                if error:
+                    log(f"skipping {source.key}: {error}")
+    n_frames = {s: np.load(p, mmap_mode="r").shape[1] for s, p in mel_paths.items() if p.exists()}
     examples = []
-    frames_by_key: dict[str, tuple[Path, int] | None] = {}
-    for name, bm, key, write_audio in iter_beatmaps(root):
-        if bm.mode != 0:
-            continue
-        if key not in frames_by_key:
-            mel_path = cache_dir / (hashlib.sha1(key.encode()).hexdigest() + ".npy")
-            try:
-                if not mel_path.exists():
-                    suffix = Path(key.split("::")[-1]).suffix
-                    with tempfile.TemporaryDirectory() as tmp:
-                        audio = Path(tmp) / f"audio{suffix}"
-                        write_audio(audio)
-                        mel = compute_features(load_audio(audio)).mel
-                    np.save(mel_path, mel.astype(np.float16))
-                n_frames = np.load(mel_path, mmap_mode="r").shape[1]
-                frames_by_key[key] = (mel_path, n_frames)
-            except Exception as exc:  # Corrupt or unsupported audio: skip the song.
-                log(f"skipping {name}: {exc}")
-                frames_by_key[key] = None
-        cached = frames_by_key[key]
-        if cached is None:
-            continue
-        example = make_example(name, bm, *cached)
-        if example is not None:
-            examples.append(example)
+    for name, bm, source in maps:
+        if source in n_frames:
+            example = make_example(name, bm, mel_paths[source], n_frames[source])
+            if example is not None:
+                examples.append(example)
     return examples
+
+
+def is_validation(example: MapExample | str, fraction: float = 0.1) -> bool:
+    """Stable song-level split based on the hash of the audio source (see ``song_id``)."""
+    sid = example if isinstance(example, str) else example.mel_path.stem
+    return int(sid[:8], 16) % 1000 < fraction * 1000
+
+
+def spread(examples: list[MapExample], n: int) -> list[MapExample]:
+    """At most ``n`` examples, evenly spaced so they cover many songs."""
+    examples = sorted(examples, key=lambda ex: (str(ex.mel_path), ex.name))
+    if len(examples) <= n:
+        return examples
+    return [examples[int(i * len(examples) / n)] for i in range(n)]
 
 
 def targets(example: MapExample, start: int, length: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

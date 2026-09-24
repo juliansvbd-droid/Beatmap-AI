@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 
 from .difficulty import PRESETS
 
@@ -36,7 +37,14 @@ def main(argv: list[str] | None = None) -> None:
     tr.add_argument("--lr", type=float, default=1e-3)
     tr.add_argument("--cache-dir")
     tr.add_argument("--device")
+    tr.add_argument("--workers", type=int, default=os.cpu_count() or 1,
+                    help="processes for computing spectrograms")
     tr.add_argument("--seed", type=int, default=0)
+
+    ev = sub.add_parser("evaluate", help="compare generated rhythm/timing with human maps")
+    ev.add_argument("data", help="directory of .osz files and/or song folders")
+    ev.add_argument("-m", "--model", help="also score this rhythm model checkpoint")
+    ev.add_argument("--max-songs", type=int, default=40)
 
     args = parser.parse_args(argv)
     if args.command == "generate":
@@ -48,11 +56,14 @@ def main(argv: list[str] | None = None) -> None:
         from .generator import analyze
         features, timing = analyze(args.audio)
         print(f"duration {features.duration:.2f}s  BPM {timing.bpm:g}  offset {timing.offset_ms:g} ms")
+    elif args.command == "evaluate":
+        from .evaluate import evaluate
+        evaluate(args.data, args.model, max_songs=args.max_songs)
     else:
         from .train import train
         train(args.data, args.output, epochs=args.epochs, steps_per_epoch=args.steps_per_epoch,
               batch_size=args.batch_size, lr=args.lr, cache_dir=args.cache_dir,
-              device=args.device, seed=args.seed)
+              device=args.device, workers=args.workers, seed=args.seed)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,21 @@
 import numpy as np
 import pytest
 
-from beatmap_ai.audio import compute_features, estimate_timing, fit_offset, load_audio
+from beatmap_ai.audio import compute_features, load_audio
+from beatmap_ai.timing import ONSET_LATENCY, estimate_timing, fit_offset
 
 from .conftest import drum_loop
 
 
+# The synthetic drums attack instantly, so the onset curve peaks only ~18 ms after them.
+# ONSET_LATENCY is calibrated on real music, whose attacks are slower, so offsets detected
+# on synthetic audio land early by the difference.
+SYNTHETIC_BIAS_MS = 18.0 - ONSET_LATENCY * 1000.0
+
+
 def phase_error_ms(offset_ms: float, true_offset_ms: float, bpm: float) -> float:
     beat = 60000.0 / bpm
-    return abs((offset_ms - true_offset_ms + beat / 2) % beat - beat / 2)
+    return abs((offset_ms - true_offset_ms - SYNTHETIC_BIAS_MS + beat / 2) % beat - beat / 2)
 
 
 @pytest.mark.parametrize("bpm, offset", [(150, 0.3), (174, 0.51), (128, 0.0955), (200, 1.0)])

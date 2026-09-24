@@ -13,8 +13,9 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.ndimage import maximum_filter1d
 
-from .audio import FPS, AudioFeatures, TimingEstimate, sample_peak
+from .audio import FPS, AudioFeatures, sample_peak
 from .difficulty import DifficultyPreset
+from .timing import TimingEstimate
 
 ACTIVE_RMS = 0.08  # loudness below which the music counts as silent
 
