@@ -216,8 +216,8 @@ def plan_objects(
 
     objects: list[PlannedObject] = []
     recovery = max(int(round(preset.slider_recovery_beats * preset.divisor)), 1)
-    min_slider = max(preset.divisor // 2, 1)
-    max_slider = 2 * preset.divisor
+    min_slider = max(int(round(preset.min_slider_beats * preset.divisor)), 1)
+    max_slider = max(int(round(preset.max_slider_beats * preset.divisor)), min_slider)
     for n, tick in enumerate(ticks):
         time = float(grid.times[tick])
         obj = PlannedObject(time, "circle", int(tick), float(intensity[tick]), time,

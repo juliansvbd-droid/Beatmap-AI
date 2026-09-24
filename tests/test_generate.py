@@ -4,7 +4,7 @@ import zipfile
 import pytest
 
 from beatmap_ai.difficulty import PRESETS
-from beatmap_ai.generator import analyze, generate, generate_beatmap
+from beatmap_ai.generator import analyze, approach_preempt, generate, generate_beatmap
 from beatmap_ai.osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH, parse_osu
 from beatmap_ai.placement import slider_path
 
@@ -83,4 +83,4 @@ def test_early_first_object_gets_lead_in(analysis):
     features, timing = analysis
     bm = generate_beatmap(features, timing, "normal")
     first = bm.hit_objects[0].time
-    assert bm.audio_lead_in == max(0, round(1200 - 750 * 0.1 + 500 - first))
+    assert bm.audio_lead_in == max(0, round(approach_preempt(bm.ar) + 500 - first))

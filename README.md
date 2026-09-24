@@ -38,15 +38,18 @@ Beatmap-AI splits the job into four steps:
 
 ### Difficulties
 
-| Name   | Notes/sec | Snap | Min gap | AR  | OD  | CS  |
-|--------|-----------|------|---------|-----|-----|-----|
-| easy   | 1.0       | 1/2  | 1 beat  | 4   | 3   | 3   |
-| normal | 1.7       | 1/2  | 1/2     | 5.5 | 4.5 | 3.5 |
-| hard   | 2.8       | 1/4  | 1/4 (max 3 in a row) | 8 | 6.5 | 4 |
-| insane | 4.0       | 1/4  | 1/4 (max 5 in a row) | 9 | 8   | 4 |
-| expert | 5.5       | 1/4  | 1/4 (streams allowed) | 9.5 | 9 | 4.2 |
+The presets follow the medians of ~2,200 ranked osu!standard difficulties (grouped by
+note density): density, slider share, slider speed, spacing, AR/OD/CS/HP.
 
-You can change them in `beatmap_ai/difficulty.py`.
+| Name   | Notes/sec | Snap | Sliders | Slider speed | AR  | OD  | CS | HP |
+|--------|-----------|------|---------|--------------|-----|-----|----|----|
+| easy   | 1.1       | 1/2  | ~55%    | 0.9          | 3   | 2   | 3  | 2  |
+| normal | 1.7       | 1/2  | ~65%    | 1.1          | 5   | 4   | 3  | 4  |
+| hard   | 2.9       | 1/4  | ~57%    | 1.5          | 8   | 6.5 | 4  | 5  |
+| insane | 3.9       | 1/4  | ~42%    | 1.7          | 9   | 8   | 4  | 6  |
+| expert | 5.2       | 1/4  | ~32%    | 1.8          | 9.4 | 9   | 4  | 6  |
+
+Tweak them in `beatmap_ai/difficulty.py`.
 
 ## Usage
 

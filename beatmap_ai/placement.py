@@ -49,6 +49,14 @@ class Placer:
         self.radius = circle_radius(preset.cs)
         self.margin = self.radius * 0.6
 
+    def spacing(self, gap_beats: float) -> float:
+        """Distance to the next object in beats of slider velocity. Gaps longer than a
+        beat don't push objects further apart."""
+        quarter, half, full = self.preset.spacing
+        if gap_beats <= 0.25:
+            return quarter * gap_beats / 0.25
+        return float(np.interp(gap_beats, [0.25, 0.5, 1.0], [quarter, half, full]))
+
     def in_bounds(self, x: float, y: float) -> bool:
         m = self.margin
         return m <= x <= PLAYFIELD_WIDTH - m and m <= y <= PLAYFIELD_HEIGHT - m
@@ -71,10 +79,9 @@ class Placer:
                 continue
 
             gap_beats = (item.time - prev_end) / self.beat_length if prev_end is not None else 8.0
-            # Longer gaps than a beat don't keep pushing objects further apart.
-            distance = preset.spacing * velocity * min(gap_beats, 1.0)
-            if preset.jump_scale > 0 and gap_beats >= 0.5:
-                distance *= 1.0 + preset.jump_scale * item.intensity ** 2
+            distance = velocity * self.spacing(gap_beats)
+            if gap_beats >= 0.5:
+                distance *= 1.0 + preset.jump_scale * (item.intensity - 0.5)
             distance = min(distance, MAX_JUMP)
             if gap_beats > 4:  # After a break, start somewhere comfortable.
                 distance = min(distance, 120.0)
@@ -93,17 +100,22 @@ class Placer:
             x, y, heading = self._find_position(pos, desired, distance, recent, item.time)
             obj = HitObject(x, y, item.time, "circle", item.new_combo)
             end = (x, y)
+            body = []
             if item.kind == "slider":
                 length = (item.end_time - item.time) / self.beat_length * velocity
-                path = self._find_slider(end, heading, length)
+                path = self._find_slider(end, heading, length, recent, item.time)
                 if path is None:
                     item.end_time = item.time
                 else:
-                    curve_type, points, end, heading = path
+                    curve_type, points, point, heading = path
+                    end = points[-1]
+                    body = [(*point(length * k / 4), item.time) for k in (1, 2, 3)]
                     obj.kind, obj.curve_type, obj.curve_points, obj.length = (
                         "slider", curve_type, points, length)
             objects.append(obj)
-            recent = (recent + [(x, y, item.time), (*end, item.end_time)])[-10:]
+            # The last entry is always the previous object's end, which the next object
+            # is placed relative to.
+            recent = (recent + [(x, y, item.time), *body, (*end, item.end_time)])[-16:]
             pos, prev_end = end, item.end_time
         return objects
 
@@ -124,22 +136,32 @@ class Placer:
         y = min(max(pos[1], self.margin), PLAYFIELD_HEIGHT - self.margin)
         return x, y, desired
 
-    def _overlaps(self, x, y, recent, time, distance) -> bool:
+    def _overlaps(self, x, y, recent, time, distance, skip_previous=True) -> bool:
+        """Whether (x, y) covers a recent object. The previous object is skipped by
+        default, since spacing already keeps new circles away from it."""
         if distance < self.radius:  # Intentional stacks/overlaps in tight streams are fine.
             return False
-        for rx, ry, rt in recent[:-1]:
+        for rx, ry, rt in (recent[:-1] if skip_previous else recent):
             if time - rt < 2000 and math.hypot(x - rx, y - ry) < 1.2 * self.radius:
                 return True
         return False
 
-    def _find_slider(self, start, heading, length):
+    def _find_slider(self, start, heading, length, recent, time):
+        """A slider path from ``start`` that stays on the playfield, preferably without
+        covering recent objects. Returns (curve type, points, sampler, end heading)."""
         bends = [self.rng.choice([-1.0, 1.0]) * self.rng.uniform(0.3, 1.2), 0.0]
+        fallback = None
         for bend in bends:
             for delta in _alternating(math.radians(20), 9):
                 curve_type, points, point, end_heading = slider_path(start, heading + delta, length, bend)
-                if all(self.in_bounds(*point(length * s / 8)) for s in range(1, 9)):
-                    return curve_type, points, points[-1], end_heading
-        return None
+                samples = [point(length * s / 8) for s in range(1, 9)]
+                if not all(self.in_bounds(*p) for p in samples):
+                    continue
+                if not any(self._overlaps(*p, recent, time, self.radius, skip_previous=False)
+                           for p in samples):
+                    return curve_type, points, point, end_heading
+                fallback = fallback or (curve_type, points, point, end_heading)
+        return fallback
 
 
 def _alternating(step: float, n: int):

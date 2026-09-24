@@ -26,7 +26,7 @@ class AudioFeatures:
 
     @property
     def n_frames(self) -> int:
-        return self.mel.shape[1]
+        return len(self.onset)
 
     def frame_times_ms(self) -> np.ndarray:
         return np.arange(self.n_frames) * 1000.0 / FPS
