@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .beatmap_ai_cache/
 *.pt
+!beatmap_ai/models/*.pt
 *.osz
 *.mp3
 *.ogg

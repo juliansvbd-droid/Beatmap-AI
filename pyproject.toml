@@ -19,3 +19,6 @@ beatmap-ai = "beatmap_ai.cli:main"
 
 [tool.setuptools]
 packages = ["beatmap_ai"]
+
+[tool.setuptools.package-data]
+beatmap_ai = ["models/*.pt"]

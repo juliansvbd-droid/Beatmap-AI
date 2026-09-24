@@ -34,7 +34,7 @@ def test_train_on_generated_maps_and_generate(song_mp3, tmp_path):
     # Use heuristic maps as a stand-in training set to exercise the whole pipeline.
     data = tmp_path / "data"
     data.mkdir()
-    generate(song_mp3, data / "set.osz", ["normal", "hard"], log=lambda *_: None)
+    generate(song_mp3, data / "set.osz", ["normal", "hard"], model_path=None, log=lambda *_: None)
     examples = build_examples(data, tmp_path / "cache", log=lambda *_: None)
     assert len(examples) == 2
     note, slider, mask = targets(examples[0], 0, 500)

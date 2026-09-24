@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from .rhythm import PlannedObject, plan_objects
 from .timing import TimingEstimate, estimate_timing, fit_offset
 
 MAX_COMBO = 16
+BUNDLED_MODEL = Path(__file__).parent / "models" / "rhythm.pt"
 BREAK_MIN_GAP = 5000.0
 
 
@@ -98,6 +100,13 @@ def generate_beatmap(
     return bm
 
 
+def bundled_model() -> Path | None:
+    """The rhythm model shipped with the package, if it and PyTorch are available."""
+    if BUNDLED_MODEL.exists() and importlib.util.find_spec("torch") is not None:
+        return BUNDLED_MODEL
+    return None
+
+
 def guess_metadata(audio_path: Path) -> tuple[str, str]:
     """"Artist - Title.mp3" -> (artist, title)."""
     artist, sep, title = audio_path.stem.partition(" - ")
@@ -108,7 +117,7 @@ def generate(
     audio_path: str | Path,
     out_path: str | Path | None = None,
     difficulties: list[str] = ("normal", "hard", "insane"),
-    model_path: str | Path | None = None,
+    model_path: str | Path | None = "auto",
     bpm: float | None = None,
     offset: float | None = None,
     title: str | None = None,
@@ -116,6 +125,8 @@ def generate(
     seed: int = 0,
     log=print,
 ) -> Path:
+    """Write an .osz with one beatmap per difficulty. ``model_path`` is a rhythm model
+    checkpoint, "auto" for the bundled model when available, or None for heuristics."""
     audio_path = Path(audio_path)
     guessed_artist, guessed_title = guess_metadata(audio_path)
     artist, title = artist or guessed_artist, title or guessed_title
@@ -127,11 +138,15 @@ def generate(
     log(f"{artist} - {title}: {features.duration:.1f}s, "
         f"BPM {timing.bpm:g}, offset {timing.offset_ms:g} ms")
 
+    if model_path == "auto":
+        model_path = bundled_model()
     model, threshold = None, 0.5
     if model_path is not None:
         from .model import load_checkpoint
         model, threshold = load_checkpoint(model_path)
-        log(f"using rhythm model {model_path} (threshold {threshold:.2f})")
+        log(f"rhythm: model {Path(model_path).name} (threshold {threshold:.2f})")
+    else:
+        log("rhythm: onset heuristics")
 
     beatmaps = []
     for i, name in enumerate(difficulties):

@@ -66,7 +66,8 @@ def test_slider_path_has_requested_length():
 
 
 def test_generate_writes_osz(song_mp3, tmp_path):
-    out = generate(song_mp3, tmp_path / "out.osz", ["easy", "insane"], log=lambda *_: None)
+    out = generate(song_mp3, tmp_path / "out.osz", ["easy", "insane"], model_path=None,
+                   log=lambda *_: None)
     with zipfile.ZipFile(out) as zf:
         names = zf.namelist()
         assert "audio.mp3" in names
@@ -84,3 +85,10 @@ def test_early_first_object_gets_lead_in(analysis):
     bm = generate_beatmap(features, timing, "normal")
     first = bm.hit_objects[0].time
     assert bm.audio_lead_in == max(0, round(approach_preempt(bm.ar) + 500 - first))
+
+
+def test_bundled_model_is_optional(monkeypatch, tmp_path):
+    import beatmap_ai.generator as gen
+
+    monkeypatch.setattr(gen, "BUNDLED_MODEL", tmp_path / "missing.pt")
+    assert gen.bundled_model() is None

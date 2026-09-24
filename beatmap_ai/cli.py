@@ -17,8 +17,11 @@ def main(argv: list[str] | None = None) -> None:
     gen.add_argument("-o", "--output", help="output .osz path (default: next to the audio)")
     gen.add_argument("-d", "--difficulty", action="append", choices=list(PRESETS),
                      help="difficulty to create; repeat for several (default: normal, hard, insane)")
-    gen.add_argument("-m", "--model", help="trained rhythm model checkpoint (.pt); "
-                                           "without it onset heuristics are used")
+    gen.add_argument("-m", "--model", default="auto",
+                     help="rhythm model checkpoint (.pt); default: the bundled model when "
+                          "PyTorch is installed")
+    gen.add_argument("--no-model", dest="model", action="store_const", const=None,
+                     help="use onset heuristics instead of the rhythm model")
     gen.add_argument("--bpm", type=float, help="override the detected BPM")
     gen.add_argument("--offset", type=float, help="override the detected offset (ms)")
     gen.add_argument("--title")
