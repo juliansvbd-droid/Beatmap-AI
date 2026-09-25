@@ -3,31 +3,49 @@
 Generate osu!standard beatmaps from an MP3.
 
 ```bash
-pip install -e .                      # add ".[train]" for the neural model
+pip install -e ".[train]"             # without [train]: rule-based rhythm only
 beatmap-ai generate "Artist - Title.mp3"
 # -> "Artist - Title.osz" with Normal, Hard and Insane difficulties
 ```
 
 Double-click the `.osz` (or drop it into osu!) to import it.
 
+## Results
+
+Measured against human mappers on songs held out from all training and tuning:
+
+| | Result |
+|---|---|
+| BPM exactly right | 87–93% of songs (44% before the learned tempo picker); the ½×/2× octave is right on all of them |
+| Offset within 10 ms of the mapper's | 85–93% of songs with the right BPM |
+| Rhythm F1 (notes within ±30 ms of the mapper's notes) | random 0.28 · heuristic 0.61 · model v1 0.71 · **bundled model 0.72** |
+
+The bundled rhythm model (`beatmap_ai/models/rhythm.pt`, 0.55M parameters) was trained on
+CPU on 6,879 difficulties from 1,191 popular ranked sets. The ranges come from two
+different held-out sets.
+
 ## How it works
 
 Beatmap-AI splits the job into four steps:
 
-1. **Audio analysis** (`beatmap_ai/audio.py`): computes a log-mel spectrogram, onset
-   strength (overall and bass-only) and loudness. The tempo comes from librosa's beat
-   tracker, then gets refined against the onset curve over the whole song. Integer BPMs
-   win when they fit about as well as a fractional one. Bass onsets decide between beat
-   and off-beat, and between tempo octaves. On test tracks the offset is accurate to
-   about 1 ms.
+1. **Audio analysis** (`beatmap_ai/audio.py`, `beatmap_ai/timing.py`): computes a
+   log-mel spectrogram, onset strength (overall and bass-only) and loudness. librosa's
+   beat tracker gives a rough tempo. Beat trackers often land on a related tempo
+   instead (½, ⅔, ¾, 4/3, 3/2 or 2×), so every one of those is refined against the
+   onset curve of the whole song. A small learned model then picks the right one. Its
+   weights are fitted on ranked maps with `scripts/fit_timing.py`. Integer BPMs win
+   when they fit about as well, and bass onsets decide between beat and off-beat. The
+   offset is corrected for onset-detector lag (58 ms, calibrated on ranked maps).
 2. **Rhythm** (`beatmap_ai/rhythm.py`): decides *when* notes happen. Every 1/2 or 1/4
    tick of the beat grid gets a score, and ticks are picked one 4-bar window at a time
    so each part of the song gets the difficulty's note density. Loud sections get more
    notes, quiet ones fewer. The picks follow each difficulty's rules: shortest gap
    between notes, longest stream, and how long a slider needs before the next note.
    Sustained sounds become sliders, and long held passages become spinners.
-   * **Heuristic mode** (default) scores ticks by onset strength and beat position.
-   * **Model mode** (`--model`) scores ticks with a trained neural network.
+   * **Model mode** (default when PyTorch is installed) scores ticks with the bundled
+     neural network. `--model other.pt` uses a different checkpoint.
+   * **Heuristic mode** (`--no-model`, or without PyTorch) scores ticks by onset
+     strength and beat position.
 3. **Placement** (`beatmap_ai/placement.py`): decides *where* notes go. Spacing grows
    with the time between notes (distance snapping). On Hard and above, loud notes also
    get jumps. The path curves smoothly within a combo and turns sharply on new combos.
