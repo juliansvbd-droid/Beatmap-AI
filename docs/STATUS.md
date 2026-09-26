@@ -184,6 +184,11 @@ Slidern im Kiai, `sv_at`).
   Messlatte für Blindtests. Prompt 03 entsprechend überarbeitet (größeres Modell erlaubt,
   Zielwerte, Krücken, Blindtest-Material).
 
+**Nächster Blindtest (nach dem Nachtlauf, Claude Code):** fair nach Sternen – erst
+Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (heute + v3)
+mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
+2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
+
 ## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
 **Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
 1. Hauptteil betonen (Zwischenlösung bis Prompt 04): in Kiai-/Refrain-Abschnitten größere
