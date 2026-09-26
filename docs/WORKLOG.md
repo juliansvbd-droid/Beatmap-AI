@@ -4,7 +4,7 @@ Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
 ## 2026-09-26 nachmittags – Claude Code (Opus 5.5)
-- Nutzertests (SAIDA, Cavalona) aus osu!lazer ausgelesen (`D:\osu\datailes`, lazer
+- Nutzertests (SAIDA, Cavalona) aus osu!lazer ausgelesen (`D:/osu/data/files`, lazeriles`, lazer
   löscht importierte .osz) und mit neuem torch-freiem `scripts/compare_maps.py` gegen
   menschliche Maps verglichen (Ordner `Vergleich/`).
 - Generator: Sternziele für benannte Difficulties (`difficulty.DEFAULT_STARS`),
