@@ -139,10 +139,8 @@ def _shape_fingerprint(points: np.ndarray) -> tuple[int, ...]:
 def _bar_signatures(bm: Beatmap, notes: list[tuple[HitObject, np.ndarray]]) -> dict[int, tuple]:
     bars: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for obj, _ in notes:
-        bar, phase, beat_length = _beat_position(bm, obj.time)
-        _, meter, _ = _timing_at(bm, obj.time)
-        phase_in_bar = ((obj.time - meter[0]) / beat_length) % max(meter[1], 1)
-        bars[bar].append((int(round(phase_in_bar * 4)), 1 if obj.kind == "slider" else 0))
+        bar, phase, _ = _beat_position(bm, obj.time)
+        bars[bar].append((int(round(phase * 4)), 1 if obj.kind == "slider" else 0))
     return {bar: tuple(sorted(items)) for bar, items in bars.items()}
 
 
@@ -322,9 +320,10 @@ def analyze_map(bm: Beatmap, stars: float | None = None, name: str = "") -> dict
 
 
 def build_reference(human_maps: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build compact 5th/50th/95th percentile limits from human maps by star range."""
+    """Build human object percentiles and map-level pattern baselines by star range."""
     reference: dict[str, Any] = {"version": 1, "source": "human validation maps",
-                                 "features": {bucket: {} for bucket in STAR_BUCKETS}}
+                                 "features": {bucket: {} for bucket in STAR_BUCKETS},
+                                 "map_metrics": {bucket: {} for bucket in STAR_BUCKETS}}
     for bucket in STAR_BUCKETS:
         maps = [item for item in human_maps if item.get("star_bucket") == bucket]
         for feature in DIFFICULTY_FEATURES:
@@ -337,11 +336,27 @@ def build_reference(human_maps: list[dict[str, Any]]) -> dict[str, Any]:
                     "p05": float(q05), "p50": float(q50), "p95": float(q95),
                     "objects": int(len(values)), "maps": len(maps),
                 }
+        metric_names = sorted({key for item in maps for key in item.get("metrics", {})})
+        for metric in metric_names:
+            values = np.asarray([item["metrics"][metric] for item in maps
+                                 if metric in item.get("metrics", {})
+                                 and math.isfinite(float(item["metrics"][metric]))], dtype=float)
+            if not len(values):
+                continue
+            p25, median, p75 = np.percentile(values, [25, 50, 75]).tolist()
+            robust_scale = (p75 - p25) / 1.349
+            scale = float(robust_scale)
+            if scale < 0.05:
+                scale = max(float(np.std(values)), 0.05)
+            reference["map_metrics"][bucket][metric] = {
+                "median": float(median), "p25": float(p25), "p75": float(p75),
+                "scale": scale, "maps": int(len(values)),
+            }
     return reference
 
 
 def apply_reference(report: dict[str, Any], reference: dict[str, Any] | None) -> dict[str, Any]:
-    """Count unique objects above their human 95th-percentile limits."""
+    """Add difficulty outliers and a robust distance from the human pattern profile."""
     bucket = report.get("star_bucket")
     feature_limits = (reference or {}).get("features", {}).get(bucket, {})
     values = report.get("_difficulty_values", {})
@@ -357,17 +372,32 @@ def apply_reference(report: dict[str, Any], reference: dict[str, Any] | None) ->
         per_feature[feature] = int(mask.sum())
         any_outlier |= mask
         report["metrics"][f"difficulty_{feature}_over_p95_per_100"] = float(mask.sum() * 100.0 / max(n, 1))
-    count = int(any_outlier.sum())
-    report["difficulty"] = {
-        "objects_over_p95": count,
-        "objects_over_p95_per_100": float(count * 100.0 / max(n, 1)),
-        "per_feature": per_feature,
-    }
-    report["metrics"]["difficulty_any_over_p95_per_100"] = report["difficulty"]["objects_over_p95_per_100"]
+    if feature_limits:
+        count = int(any_outlier.sum())
+        report["difficulty"] = {
+            "objects_over_p95": count,
+            "objects_over_p95_per_100": float(count * 100.0 / max(n, 1)),
+            "per_feature": per_feature,
+        }
+        report["metrics"]["difficulty_any_over_p95_per_100"] = report["difficulty"]["objects_over_p95_per_100"]
+    else:
+        report["difficulty"] = {"objects_over_p95": None, "objects_over_p95_per_100": None,
+                                 "per_feature": {}}
+    metric_reference = (reference or {}).get("map_metrics", {}).get(bucket, {})
+    deviations = []
+    for metric, baseline in metric_reference.items():
+        if metric not in report["metrics"]:
+            continue
+        scale = max(float(baseline.get("scale", 0.05)), 0.05)
+        deviations.append(abs(float(report["metrics"][metric]) - float(baseline["median"])) / scale)
+    score = float(np.mean(deviations)) if deviations else None
+    report["pattern_deviation"] = {"score": score, "metrics_compared": len(deviations),
+                                   "meaning": "mean robust-z distance from the human median profile; 0 is the median profile"}
+    if score is not None:
+        report["metrics"]["pattern_deviation"] = score
     return report
 
 
 def clean_report(report: dict[str, Any]) -> dict[str, Any]:
     """Drop internal per-object arrays before displaying or serializing a report."""
     return {key: value for key, value in report.items() if not key.startswith("_")}
-

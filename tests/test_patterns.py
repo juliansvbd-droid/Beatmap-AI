@@ -3,7 +3,14 @@ import math
 import numpy as np
 
 from beatmap_ai.osu import Beatmap, HitObject, TimingPoint
-from beatmap_ai.patterns import _shape_fingerprint, analyze_map, star_bucket
+from beatmap_ai.patterns import (
+    DIFFICULTY_FEATURES,
+    _shape_fingerprint,
+    analyze_map,
+    apply_reference,
+    build_reference,
+    star_bucket,
+)
 
 
 def make_map(points, times=None):
@@ -22,20 +29,20 @@ def test_detects_triangle_quadrilateral_and_zigzag():
     square = make_map([(100, 100), (200, 100), (200, 200), (100, 200), (100, 100)])
     zigzag = make_map([(100, 100), (200, 100), (100, 100), (200, 100)])
 
-    assert analyze_map(triangle)."""metrics"""["pattern_triangle_per_100"] > 0
-    assert analyze_map(square)."""metrics"""["pattern_quadrilateral_per_100"] > 0
-    assert analyze_map(zigzag)."""metrics"""["pattern_zigzag_per_100"] > 0
+    assert analyze_map(triangle)["metrics"]["pattern_triangle_per_100"] > 0
+    assert analyze_map(square)["metrics"]["pattern_quadrilateral_per_100"] > 0
+    assert analyze_map(zigzag)["metrics"]["pattern_zigzag_per_100"] > 0
 
 
 def test_counts_double_triple_burst_and_stream_groups():
-    subdivisions = [1, 1, 1, 1, 3, 1, 1, 1, 4, 1, 1, 1, 1, 4, 1, 1, 1, 1]
+    subdivisions = [1, 4, 1, 1, 4, 1, 1, 1, 4, *([1] * 8)]
     times = [0]
     for spacing in subdivisions:
         times.append(times[-1] + spacing * 125)
     points = [(80 + i * 19, 100 + (i % 2) * 30) for i in range(len(times))]
     bm = make_map(points, times)
 
-    metrics = analyze_map(bm)."""metrics"""
+    metrics = analyze_map(bm)["metrics"]
 
     expected = 100.0 / len(points)
     assert math.isclose(metrics["double_1_4"], expected)
@@ -63,3 +70,22 @@ def test_star_buckets_use_half_open_edges():
     assert star_bucket(4.5) == "4.5-6"
     assert star_bucket(6.0) == "6+"
     assert star_bucket(None) is None
+
+
+def test_pattern_deviation_is_zero_for_the_human_median_profile():
+    human_maps = [
+        {"star_bucket": "<3", "metrics": {"slider_share_pct": value},
+         "_difficulty_values": {feature: [0.0] for feature in DIFFICULTY_FEATURES}}
+        for value in (0.0, 2.0, 4.0)
+    ]
+    reference = build_reference(human_maps)
+    report = {
+        "star_bucket": "<3",
+        "object_count": 1,
+        "metrics": {"slider_share_pct": 2.0},
+        "_difficulty_values": {feature: [0.0] for feature in DIFFICULTY_FEATURES},
+    }
+
+    apply_reference(report, reference)
+
+    assert math.isclose(report["pattern_deviation"]["score"], 0.0)

@@ -3,6 +3,36 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 17:52 – Codex (Prompt sol-01: Muster-Messungen)
+- `beatmap_ai/patterns.py`: torch-freie Messungen für Rhythmusgruppen, geometrische Sprungfolgen,
+  wiederholte Formen, Sliderlänge/-krümmung und schwierigkeitsspezifische P95-Ausreißer ergänzt.
+  Human-Referenz enthält P05/P50/P95 je Sternbereich sowie robuste Map-Medianwerte; jede Map
+  erhält zusätzlich einen Muster-Abweichungsscore (0 am menschlichen Medianprofil).
+- `scripts/pattern_stats.py`: CLI für `--human`, `--manifest`, `--files`, sternbalancierte Auswahl,
+  Validierungssong-Filter, direkte Quellmap-Paare, Markdown/JSON und höchstens 4 Gesamtprozesse.
+  Verworfen werden generierte Maps in menschlichen Ordnern. Messung lud kein PyTorch
+  (`torch imported: False` im Laufzeitaudit).
+- `tests/test_patterns.py`: fünf synthetische Tests für Dreieck/Viereck/Zickzack, Double/Triple/
+  Burst/Stream-Zählung, rotations-/spiegelungs-/translationsinvariante Wiederholung, Sternklassen
+  und den Score am menschlichen Median. Ergebnis: `pytest -q tests/test_patterns.py` → 5 passed.
+  JSON-Smoke-Test an einer echten Map: 1 Map, Difficulty-Referenz und Score ausgegeben.
+- Vollmessung auf Validierungssongs: 5.757 Kandidaten, ausgewählt 2.000 menschliche Maps
+  (500 je Sternbereich). Von 3.000 Manifestzeilen bestanden 2.997 die Kriterien osu!standard,
+  mindestens 20 Objekte und Timingpunkt; alle 3.000 Quelldateien existieren. KI-Sternverteilung:
+  `<3`: 1.778 · `3–4,5`: 854 · `4,5–6`: 315 · `6+`: 50. 286 passende `is_val=true`-Quellpaare
+  gefunden: 170 · 86 · 29 · 1 je Sternbereich. Laufzeit des Abschlusslaufs: ca. 8 min 10 s,
+  ein Analyseprozess.
+- Muster-Abweichung (kleiner = näher am menschlichen Medianprofil), Mittelwert je Map Mensch/KI:
+  `<3`: 0,492/0,648 · `3–4,5`: 0,641/0,634 · `4,5–6`: 0,708/0,668 · `6+`: 0,692/0,779.
+  Bei `6+` sind nur 50 KI-Maps und ein direktes Paar vorhanden. Größte übrige Unterschiede laut
+  Bericht: 6★+ wiederholte Muster 32,28/5,06 %; <3★ Zickzack 0,20/1,15 je 100; 6★+ Taktpassung
+  25,29/2,14 %; <3★ Slider 57,40/42,53 %; 4,5–6★ wiederholte Muster 24,53/5,24 % (Mensch/KI).
+- Ergebnisbericht: `D:\BeatMap-AI-Dataset\pattern_stats_2026-09-26.log` (8.731 Bytes).
+  Referenz: `beatmap_ai/pattern_reference.json` (25.517 Bytes). Beispiele mit Map und Zeitstempel
+  stehen je Mustertyp im Bericht. Takt-/Songteilpassung ist eine Näherung; die Beispiele wurden
+  nicht manuell im osu!-Editor kontrolliert. Nächster sinnvoller Schritt: Beispiele stichprobenartig
+  prüfen und Schwellen nach Bedarf justieren. Keine Arbeit bleibt halb fertig.
+
 ## 2026-09-26 abends – Claude Code (Opus 5.5)
 - Cursor-Flow (`SequencePlacer.sharp_keep`), spielbarere Slider (½ Beat Pause nach den
   meisten Slidern, Slider-Anteil im menschlichen Rahmen), `compare_maps.py` misst Wendungen

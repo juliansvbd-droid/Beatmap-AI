@@ -1,10 +1,15 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-26 07:06, von Codex._
+_Zuletzt aktualisiert: 2026-09-26 17:52, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- Keine laufenden Jobs. Prompt 01b ist am 26.09.2026 abgeschlossen und ausgewertet.
+- Keine laufenden BeatMap-AI-Mess- oder Trainingsjobs. Prompt sol-01 ist am 26.09.2026
+  abgeschlossen: 2.000 menschliche Validierungs-Maps und 2.997 gültige Maps aus 3.000
+  Manifestzeilen; 286 passende Validierungspaare wurden verbunden. Bericht:
+  `D:\BeatMap-AI-Dataset\pattern_stats_2026-09-26.log`; menschliche Referenz:
+  `beatmap_ai/pattern_reference.json`. Der Lauf war CPU-only und importierte kein PyTorch.
+- Prompt 01b ist am 26.09.2026 abgeschlossen und ausgewertet.
   Die Dateinamenbereinigung greift jetzt auch **nach** dem Kürzen (`[:60]` und `[:40]`),
   wodurch der TUYU-Pfadfehler behoben ist. Neu erzeugt wurden 3.000 Paare, je 750 pro
   Sternbereich; Kiai-Fenster: `<3`: 252, `3-4.5`: 318, `4.5-6`: 368, `6+`: 341.
@@ -74,6 +79,25 @@ Slidern im Kiai, `sv_at`).
     Bewegungsfehler sinkt mit dem alten Critic auf 0,2104, steigt mit dem neuen aber auf
     0,2146 (Baseline 0,2305). Deshalb bleibt `beatmap_ai/models/critic.pt` auf v1; das neue
     Modell liegt nur unter `D:\BeatMap-AI-Dataset\critic_paired.pt`.
+
+## Muster-Messungen (Prompt sol-01, 26.09.2026)
+- 2.000 menschliche Validierungs-Maps, gleichmäßig 500 je Sternbereich; 5.757 Kandidaten
+  geprüft. 2.997/3.000 KI-Maps bestanden die osu!standard-/Objekt-/Timingpunkt-Prüfung
+  (alle Quelldateien sind vorhanden). KI-Anzahl je Sternbereich: 1.778 · 854 · 315 · 50.
+- Muster-Abweichung ist der mittlere robuste Abstand jeder Map zum menschlichen Medianprofil
+  ihrer Sternklasse; 0 heißt exakt dieses Medianprofil. Mittelwert je Map Mensch/KI:
+  `<3`: 0,492/0,648 · `3–4,5`: 0,641/0,634 · `4,5–6`: 0,708/0,668 · `6+`: 0,692/0,779.
+- Größte Unterschiede: `6+` wiederholte Muster 32,28/5,06 %; `<3` Zickzack 0,20/1,15 je 100;
+  `6+` Taktpassung 25,29/2,14 %; `<3` Slider-Anteil 57,40/42,53 %; `4,5–6` wiederholte Muster
+  24,53/5,24 % (jeweils Mensch/KI). Bei `4,5–6` liegen Doubles auf 1/4 Beat bei 3,85/2,05
+  Gruppen je 100 Objekte und Slider bei 42,37/31,56 %.
+- Im Manifest als Validierung markierte direkte Paare: 286 (Sternbereiche: 170 · 86 · 29 · 1).
+  Die `6+`-KI-Stichprobe umfasst nur 50 Maps, dort gibt es nur ein direktes Paar.
+- Die 5./50./95. Perzentile zu Sprunggeschwindigkeit, scharfen Wendungen bei hohem Tempo,
+  Streamlänge und Bildschirmabdeckung stehen je Sternbereich in `pattern_reference.json`.
+  Der Bericht enthält pro Mustertyp bis zu drei Maps mit Zeitstempel für die Prüfung im Editor.
+  Die Takt-/Songteilpassung ist ein Näherungswert; die Beispiele wurden noch nicht manuell
+  im osu!-Editor kontrolliert.
 
 ## Rückmeldungen des Nutzers (was noch stört)
 - Gut: Stil-Auswahl funktioniert, oft besser als „Auto“.
@@ -151,10 +175,12 @@ Slidern im Kiai, `sv_at`).
 3. Flow bei leichten Maps: mehr gerade Weiterführungen (5–15 % statt ~21 %).
 4. Standard-Bewerter-KI festlegen (v1/v2/aus) nach Nutzertests; 5,5★+ nachmessen.
 **Parallel ohne GPU:** `prompts/sol-01-muster-messungen.md` (GPT-6 Sol); README in einer
-Cloud-Sitzung aktualisieren.
+Cloud-Sitzung aktualisieren. Prompt sol-01 ist abgeschlossen; das Werkzeug steht für Folge-
+messungen an eigenen Dateien und künftigen Modellen bereit.
 **Phase B – große Prompts, neue Reihenfolge 03 → 04 → 02** (nie parallel, GPU-Trainings):
 - 03 zuerst ergänzen mit den Messungen vom 26.09. (Abstände 220 vs. 350 px/Beat bei
-  4,5–6★, Doubles 1,5 vs. 2,8, Slider-Grenzen, Cursor-Flow-Messung aus compare_maps).
+  4,5–6★, Doubles 1,5 vs. 2,8, Slider-Grenzen, Cursor-Flow-Messung aus compare_maps) und
+  den neuen Vergleich aus `scripts/pattern_stats.py`.
 - 04 Vorplanungs-KI inkl. Songteile/Hauptteil (Nutzerwunsch), ersetzt `DEFAULT_STARS`
   und Auto-Stil.
 - 02 Song-Passung + mehrere Durchgänge.
@@ -165,7 +191,7 @@ Cloud-Sitzung aktualisieren.
 |---|---|---|---|
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
 | 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
-| sol-01 | `prompts/sol-01-muster-messungen.md` | Für GPT-6 Sol, ohne GPU, parallel zu 01b möglich: Muster-Messwerkzeug (Jump-Muster, Doubles, Wiederholung, zu schwere Muster je Sternbereich) | bereit |
+| sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
 | 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | bereit (Critic v1 aktiv) |
 | 03 | `prompts/03-v3-sliderformen-und-muster.md` | v3: echte Slider-Formen, Auto-Tagging + ausgewogene Daten (Sterne × Stil), Abschnitts-Vorgaben, Muster-Messungen, AR/OD/HP/CS | wartet auf 02 |
 | 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | wartet auf 03 |
@@ -183,5 +209,6 @@ Cloud-Sitzung aktualisieren.
 - Tests: `.venv-rocm\Scripts\python.exe -m pytest -q` (38 Tests, alle grün am 25.09. abends).
 - Validierungs-Aufteilung immer nach `beatmap_ai.dataset.is_validation(song_key(bm))`.
 - Messwerkzeuge: `beatmap-ai evaluate`, `scripts/tune_threshold.py`, `scripts/map_stats.py`,
-  `scripts/eval_sequence.py` (`--follow` = so wie die App), `scripts/human_agreement.py`.
+  `scripts/eval_sequence.py` (`--follow` = so wie die App), `scripts/human_agreement.py`,
+  `scripts/pattern_stats.py` (torch-frei; Markdown oder `--json`, Referenz in `beatmap_ai/pattern_reference.json`).
 
