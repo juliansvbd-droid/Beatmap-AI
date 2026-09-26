@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -63,10 +64,11 @@ class HitObject:
             return f"{x},{y},{t},{TYPE_CIRCLE | combo},{self.hit_sound},0:0:0:0:"
         if self.kind == "slider":
             points = "|".join(f"{round(px)}:{round(py)}" for px, py in self.curve_points)
-            edges = "|".join(["0"] * (self.slides + 1))
+            # A slider's hitsound plays on its head (the first edge), not along its body.
+            edges = "|".join([str(self.hit_sound)] + ["0"] * self.slides)
             edge_sets = "|".join(["0:0"] * (self.slides + 1))
             return (
-                f"{x},{y},{t},{TYPE_SLIDER | combo},{self.hit_sound},"
+                f"{x},{y},{t},{TYPE_SLIDER | combo},0,"
                 f"{self.curve_type}|{points},{self.slides},{self.length:.2f},"
                 f"{edges},{edge_sets},0:0:0:0:"
             )
@@ -102,18 +104,34 @@ class Beatmap:
 
     def timing_at(self, time: float) -> tuple[float, float]:
         """Return (ms per beat, slider velocity multiplier) in effect at ``time``."""
+        times, values = self._timing_table()
+        i = bisect.bisect_right(times, time + 1e-6) - 1
+        return values[i]
+
+    def _timing_table(self) -> tuple[list[float], list[tuple[float, float]]]:
+        """(times, (ms per beat, slider velocity)) after each timing point, cached until
+        the timing points change."""
+        key = (id(self.timing_points), len(self.timing_points))
+        cached = self.__dict__.get("_timing_cache")
+        if cached is not None and cached[0] == key:
+            return cached[1]
         uninherited = [tp for tp in self.timing_points if tp.uninherited]
         if not uninherited:
             raise ValueError("beatmap has no uninherited timing points")
         beat_length, sv = uninherited[0].beat_length, 1.0
+        times, values = [], []
         for tp in sorted(self.timing_points, key=lambda tp: tp.time):
-            if tp.time > time + 1e-6:
-                break
             if tp.uninherited:
                 beat_length, sv = tp.beat_length, 1.0
             elif tp.beat_length < 0:
                 sv = min(max(-100.0 / tp.beat_length, 0.1), 10.0)
-        return beat_length, sv
+            times.append(tp.time)
+            values.append((beat_length, sv))
+        # Before the first timing point, the first uninherited one applies.
+        values.insert(0, (uninherited[0].beat_length, 1.0))
+        times.insert(0, float("-inf"))
+        self.__dict__["_timing_cache"] = (key, (times, values))
+        return times, values
 
     def slider_duration(self, obj: HitObject) -> float:
         beat_length, sv = self.timing_at(obj.time)
@@ -297,6 +315,12 @@ def _parse_hit_object(line: str) -> HitObject | None:
         for p in raw_points:
             px, _, py = p.partition(":")
             points.append((float(px), float(py)))
+        # Mappers put slider hitsounds on the edges; keep the head's as the hitsound.
+        if len(parts) >= 9 and parts[8]:
+            try:
+                hit_sound = int(parts[8].split("|")[0])
+            except ValueError:
+                pass
         return HitObject(
             x, y, time, "slider", new_combo, hit_sound,
             curve_type=curve_type, curve_points=points,

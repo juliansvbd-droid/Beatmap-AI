@@ -23,6 +23,7 @@ class AudioFeatures:
     rms: np.ndarray  # (T,) loudness in [0, 1]
     bass_onset: np.ndarray  # (T,) onset strength of the bass range (kicks), in [0, 1]
     duration: float  # seconds
+    chroma: np.ndarray | None = None  # (12, T) pitch classes, for finding repeated sections
 
     @property
     def n_frames(self) -> int:
@@ -35,18 +36,17 @@ class AudioFeatures:
 def load_audio(path: str | Path) -> np.ndarray:
     """Decode to mono at SAMPLE_RATE."""
     try:
+        import miniaudio
+        decoded = miniaudio.decode_file(str(path), output_format=miniaudio.SampleFormat.FLOAT32,
+                                       nchannels=1, sample_rate=SAMPLE_RATE)
+        return np.frombuffer(decoded.samples, dtype=np.float32)
+    except Exception:
         y, sr = sf.read(str(path), dtype="float32", always_2d=True)
         y = y.mean(axis=1)
-    except Exception:
-        # libsndfile rejects some slightly broken MP3s that miniaudio decodes fine
-        # (both trim the encoder delay, so timing is identical).
-        import miniaudio
-        decoded = miniaudio.decode_file(str(path), output_format=miniaudio.SampleFormat.FLOAT32, nchannels=1)
-        y, sr = np.frombuffer(decoded.samples, dtype=np.float32), decoded.sample_rate
-    return y if sr == SAMPLE_RATE else librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
+        return y if sr == SAMPLE_RATE else librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
 
 
-def compute_features(y: np.ndarray) -> AudioFeatures:
+def compute_features(y: np.ndarray, chroma: bool = False) -> AudioFeatures:
     power = librosa.feature.melspectrogram(
         y=y, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH, n_mels=N_MELS
     )
@@ -63,7 +63,14 @@ def compute_features(y: np.ndarray) -> AudioFeatures:
         rms=_normalize(_fit_length(rms, n)),
         bass_onset=_normalize(_fit_length(bass_onset, n)),
         duration=len(y) / SAMPLE_RATE,
+        chroma=_fit_length_2d(librosa.feature.chroma_stft(
+            y=y, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH), n) if chroma else None,
     )
+
+
+def _fit_length_2d(x: np.ndarray, n: int) -> np.ndarray:
+    x = x[:, :n] if x.shape[1] >= n else np.pad(x, ((0, 0), (0, n - x.shape[1])))
+    return x.astype(np.float32)
 
 
 def _fit_length(x: np.ndarray, n: int) -> np.ndarray:

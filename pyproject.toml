@@ -11,11 +11,12 @@ requires-python = ">=3.10"
 dependencies = ["numpy", "scipy", "librosa>=0.10", "soundfile>=0.12", "miniaudio>=1.59"]
 
 [project.optional-dependencies]
-train = ["torch>=2.0"]
-dev = ["pytest", "torch>=2.0"]
+train = ["torch>=2.0", "rosu-pp-py"]
+dev = ["pytest", "torch>=2.0", "rosu-pp-py"]
 
 [project.scripts]
 beatmap-ai = "beatmap_ai.cli:main"
+beatmap-ai-ui = "beatmap_ai.ui:main"
 
 [tool.setuptools]
 packages = ["beatmap_ai"]

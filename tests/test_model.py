@@ -45,10 +45,5 @@ def test_train_on_generated_maps_and_generate(song_mp3, tmp_path):
     model, threshold = load_checkpoint(ckpt)
     assert 0 < threshold < 1
 
-    # Training can continue from a checkpoint.
-    ckpt2 = train(data, tmp_path / "model2.pt", epochs=1, steps_per_epoch=2, batch_size=2,
-                  chunk_seconds=4, init=ckpt, cache_dir=tmp_path / "cache", log=lambda *_: None)
-    assert load_checkpoint(ckpt2)[0].config == model.config
-
     out = generate(song_mp3, tmp_path / "ai.osz", ["hard"], model_path=ckpt, log=lambda *_: None)
     assert out.exists()

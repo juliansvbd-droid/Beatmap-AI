@@ -42,12 +42,15 @@ def slider_path(start, heading: float, length: float, bend: float):
 
 
 class Placer:
-    def __init__(self, preset: DifficultyPreset, rng: np.random.Generator, beat_length: float):
+    def __init__(self, preset: DifficultyPreset, rng: np.random.Generator, beat_length: float,
+                 spacing_scale: float = 1.0, sv_at=None):
         self.preset = preset
+        self.spacing_scale = spacing_scale  # scales every distance (to reach a star rating)
         self.rng = rng
         self.beat_length = beat_length
         self.radius = circle_radius(preset.cs)
         self.margin = self.radius * 0.6
+        self.sv_at = sv_at
 
     def spacing(self, gap_beats: float) -> float:
         """Distance to the next object in beats of slider velocity. Gaps longer than a
@@ -63,7 +66,7 @@ class Placer:
 
     def place(self, plan: list[PlannedObject]) -> list[HitObject]:
         preset, rng = self.preset, self.rng
-        velocity = preset.slider_multiplier * 100.0  # pixels per beat
+        base_velocity = preset.slider_multiplier * 100.0  # pixels per beat
         objects: list[HitObject] = []
         recent: list[tuple[float, float, float]] = []  # (x, y, time) of recent objects
         pos = (PLAYFIELD_WIDTH / 2, PLAYFIELD_HEIGHT / 2)
@@ -78,11 +81,20 @@ class Placer:
                 recent.clear()
                 continue
 
-            gap_beats = (item.time - prev_end) / self.beat_length if prev_end is not None else 8.0
-            distance = velocity * self.spacing(gap_beats)
-            if gap_beats >= 0.5:
-                distance *= 1.0 + preset.jump_scale * (item.intensity - 0.5)
-            distance = min(distance, MAX_JUMP)
+            beat_length = item.beat_length or self.beat_length
+            sv = self.sv_at(item.time) if self.sv_at is not None else 1.0
+            velocity = base_velocity * sv
+            gap_beats = (item.time - prev_end) / beat_length if prev_end is not None else 8.0
+            if item.spacing is not None:
+                # The model's distance snap: jumps where mappers would emphasise the
+                # music, tight spacing or stacks where they would keep it calm.
+                distance = velocity * item.spacing * min(gap_beats, 1.0)
+            else:
+                distance = velocity * self.spacing(gap_beats)
+                if gap_beats >= 0.5:
+                    distance *= 1.0 + preset.jump_scale * (item.intensity - 0.5)
+            # Very high star ratings need jumps across most of the playfield.
+            distance = min(distance * self.spacing_scale, MAX_JUMP * max(self.spacing_scale, 1.0))
             if gap_beats > 4:  # After a break, start somewhere comfortable.
                 distance = min(distance, 120.0)
 
@@ -102,7 +114,8 @@ class Placer:
             end = (x, y)
             body = []
             if item.kind == "slider":
-                length = (item.end_time - item.time) / self.beat_length * velocity
+                slides = getattr(item, "slides", 1)
+                length = (item.end_time - item.time) / slides / beat_length * velocity
                 path = self._find_slider(end, heading, length, recent, item.time)
                 if path is None:
                     item.end_time = item.time
@@ -112,6 +125,9 @@ class Placer:
                     body = [(*point(length * k / 4), item.time) for k in (1, 2, 3)]
                     obj.kind, obj.curve_type, obj.curve_points, obj.length = (
                         "slider", curve_type, points, length)
+                    obj.slides = slides
+                    if slides % 2 == 0:  # ends back at its head
+                        end = (x, y)
             objects.append(obj)
             # The last entry is always the previous object's end, which the next object
             # is placed relative to.

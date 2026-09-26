@@ -15,7 +15,10 @@ from pathlib import Path
 import numpy as np
 
 from .audio import AudioFeatures
-from .dataset import MIN_OBJECTS, is_validation, iter_beatmaps, note_density, song_id
+from .dataset import (MIN_OBJECTS, is_validation, iter_beatmap_texts, map_key, note_density,
+                      song_key)
+from .osu import parse_osu
+from .style import star_rating
 from .difficulty import PRESETS, DifficultyPreset
 from .osu import Beatmap
 from .rhythm import plan_objects
@@ -59,46 +62,72 @@ def closest_preset(density: float) -> DifficultyPreset:
 
 
 def rhythm_f1(features: AudioFeatures, bm: Beatmap, timing: TimingEstimate,
-              model=None, threshold: float = 0.5) -> float:
+              model=None, threshold: float = 0.5,
+              selections: tuple[str, ...] = ("threshold",), stars: float | None = None) -> list[float]:
+    """F1 of the generated rhythm against ``bm``, one value per model ``selections``
+    mode (a single value without a model). The model is told the map's density and,
+    if it knows them, its ``stars`` -- what the generator knows when asked for them."""
     density = note_density(bm)
     preset = closest_preset(density)
-    note_probs = slider_probs = None
+    outputs: dict[str, np.ndarray] = {}
     if model is not None:
-        from .model import predict
+        from .model import predict_all
         grid = [(tp.time, tp.beat_length, tp.meter) for tp in bm.timing_points if tp.uninherited]
-        note_probs, slider_probs = predict(model, features, grid, density)
-    plan = plan_objects(features, timing, preset, np.random.default_rng(0),
-                        note_probs, slider_probs, threshold)
-    pred = np.array([p.time for p in plan])
+        conditions = {"density": density}
+        if stars is not None:
+            conditions["stars"] = stars
+        outputs = predict_all(model, features, grid, conditions)
+    else:
+        selections = ("threshold",)
     truth = np.array([o.time for o in bm.hit_objects])
-    return match_f1(pred, truth)
+    scores = []
+    for selection in selections:
+        plan = plan_objects(features, timing, preset, np.random.default_rng(0),
+                            outputs.get("note"), outputs.get("slider"), threshold, selection,
+                            outputs.get("sustain"), outputs.get("spacing"))
+        scores.append(match_f1(np.array([p.time for p in plan]), truth))
+    return scores
 
 
-def evaluate(data_dir: str | Path, model_path: str | Path | None = None,
+STAR_BUCKETS = ((0, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 99))
+
+
+def evaluate(data_dir: str | Path | list[str | Path], model_path: str | Path | None = None,
              val_fraction: float = 0.1, max_songs: int = 40, log=print) -> dict:
+    """Timing and rhythm accuracy on held-out songs, overall and per star rating."""
     model, threshold = None, 0.5
     if model_path is not None:
         from .model import load_checkpoint
         model, threshold = load_checkpoint(model_path)
 
     songs: dict[str, list] = defaultdict(list)
-    sources = {}
-    for _, bm, source in iter_beatmaps(data_dir):
-        sid = song_id(source.key)
-        if bm.mode == 0 and len(bm.hit_objects) >= MIN_OBJECTS and is_validation(sid, val_fraction):
-            songs[sid].append(bm)
-            sources[sid] = source
-    selected = sorted(songs)[:max_songs]
+    sources, seen = {}, set()
+    for folder in [data_dir] if isinstance(data_dir, (str, Path)) else data_dir:
+        for _, text, source, _ in iter_beatmap_texts(folder):
+            if source.path.suffix == ".npy":  # Audio deleted, only the spectrogram is left.
+                continue
+            bm = parse_osu(text)
+            key = song_key(bm)
+            if (bm.mode == 0 and len(bm.hit_objects) >= MIN_OBJECTS
+                    and is_validation(key, val_fraction) and map_key(bm) not in seen):
+                seen.add(map_key(bm))
+                # One audio file per song; its other versions may be cut differently.
+                if sources.setdefault(key, source) == source:
+                    songs[key].append((bm, star_rating(text)))
+    # Spread the chosen songs over the whole (hash-ordered) list.
+    ordered = sorted(songs)
+    selected = [ordered[int(i * len(ordered) / max_songs)] for i in range(min(max_songs, len(ordered)))]
 
     bpm_ok, octave_ok, offset_errors = [], [], []
-    f1_heuristic, f1_model = [], []
+    f1_heuristic, f1_model, map_stars = [], [], []
     for sid in selected:
         try:
             features = sources[sid].load_features()
         except Exception as exc:
             log(f"skipping {sources[sid].key}: {exc}")
             continue
-        truth = next((t for t in map(constant_timing, songs[sid]) if t is not None), None)
+        maps = songs[sid]
+        truth = next((t for t in (constant_timing(bm) for bm, _ in maps) if t is not None), None)
         if truth is not None:
             detected = estimate_timing(features)
             ratio = detected.bpm / truth.bpm
@@ -107,16 +136,20 @@ def evaluate(data_dir: str | Path, model_path: str | Path | None = None,
             if bpm_ok[-1]:
                 beat = truth.beat_length
                 offset_errors.append((detected.offset_ms - truth.offset_ms + beat / 2) % beat - beat / 2)
-        for bm in songs[sid]:
+        n = 0
+        for bm, stars in maps:
             timing = constant_timing(bm)
             if timing is None:
                 continue
-            f1_heuristic.append(rhythm_f1(features, bm, timing))
+            n += 1
+            map_stars.append(stars if stars is not None else np.nan)
+            f1_heuristic += rhythm_f1(features, bm, timing)
             if model is not None:
-                f1_model.append(rhythm_f1(features, bm, timing, model, threshold))
-        log(f"  {songs[sid][0].artist} - {songs[sid][0].title}: "
-            f"heuristic F1 {np.mean(f1_heuristic[-len(songs[sid]):]) if f1_heuristic else 0:.3f}"
-            + (f", model F1 {np.mean(f1_model[-len(songs[sid]):]):.3f}" if f1_model else ""))
+                f1_model += rhythm_f1(features, bm, timing, model, threshold, stars=stars)
+        if n:
+            log(f"  {maps[0][0].artist} - {maps[0][0].title}: "
+                f"heuristic F1 {np.mean(f1_heuristic[-n:]):.3f}"
+                + (f", model F1 {np.mean(f1_model[-n:]):.3f}" if f1_model else ""))
 
     offsets = np.array(offset_errors)
     results = {
@@ -131,4 +164,15 @@ def evaluate(data_dir: str | Path, model_path: str | Path | None = None,
     }
     for k, v in results.items():
         log(f"{k:>26}: {v:.3f}" if isinstance(v, float) else f"{k:>26}: {v}")
+    # The same F1 for each star range, so weak difficulties do not hide in the average.
+    stars = np.array(map_stars, dtype=float)
+    scores = np.array(f1_model if f1_model else f1_heuristic)
+    per_stars = {}
+    for lo, hi in STAR_BUCKETS:
+        inside = (stars >= lo) & (stars < hi)
+        if inside.any():
+            label = f"{lo}-{hi}*" if hi < 99 else f"{lo}+*"
+            per_stars[label] = (float(scores[inside].mean()), int(inside.sum()))
+            log(f"{'rhythm F1 ' + label:>26}: {per_stars[label][0]:.3f}  ({per_stars[label][1]} maps)")
+    results["rhythm_f1_by_stars"] = per_stars
     return results
