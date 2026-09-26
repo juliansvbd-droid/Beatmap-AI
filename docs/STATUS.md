@@ -176,8 +176,13 @@ Slidern im Kiai, `sv_at`).
   S0N6F0RMYD34TH: Mapperatorinator-Timing kaputt (Start erst nach 33–57 s, Noten bei 0 ms,
   3,65★/8,4★ statt 4,5/5,6; fp32-Neuversuch: „No timing points“) – evtl. unsere Umgebung.
 - Blindtest für den Nutzer: `D:/Mapperatorinator/blindtest/` (GUERREIRO, ALQUIMIA; A/B
-  zufällig, Auflösung in `AUFLOESUNG_erst_nach_dem_Spielen_oeffnen.json`). **Ergebnis des
-  Nutzers steht noch aus** – danach entscheiden, ob BeatMap AI weiterentwickelt wird.
+  zufällig, Auflösung in `AUFLOESUNG_erst_nach_dem_Spielen_oeffnen.json`). **Ergebnis (Nutzer, nur
+  Insane gespielt): beide gut, Mapperatorinator („B“) bei beiden Songs einen Ticken besser,
+  „keine Welten“. Rhythmus gleich gut, Platzierung bei Mapperatorinator besser.**
+  Entscheidung des Nutzers: **eigenes Platzierungsmodell v3 (Prompt 03), nichts kopieren**
+  (Hybrid mit Mapperatorinators Platzierung abgelehnt). Mapperatorinator bleibt nur
+  Messlatte für Blindtests. Prompt 03 entsprechend überarbeitet (größeres Modell erlaubt,
+  Zielwerte, Krücken, Blindtest-Material).
 
 ## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
 **Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
@@ -205,8 +210,8 @@ messungen an eigenen Dateien und künftigen Modellen bereit.
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
 | 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
-| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | bereit (Critic v1 aktiv) |
-| 03 | `prompts/03-v3-sliderformen-und-muster.md` | v3: echte Slider-Formen, Auto-Tagging + ausgewogene Daten (Sterne × Stil), Abschnitts-Vorgaben, Muster-Messungen, AR/OD/HP/CS | wartet auf 02 |
+| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | wartet auf 04 |
+| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **als Nächstes** |
 | 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | wartet auf 03 |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
