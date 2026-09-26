@@ -1,14 +1,14 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-26 21:58, von Codex._
+_Zuletzt aktualisiert: 2026-09-27 00:15:14 W. Europe Summer Time, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- Keine laufenden BeatMap-AI-Mess- oder Trainingsjobs; Prompt 05 ist implementiert und
-  vollständig vorgeprüft. `pytest -q`: 50 bestanden. ROCm-Schrittzeit Planner: 128 =
+- **Nachtlauf läuft: Phase D – v3-Haupttraining.** PID 9932, gestartet 2026-09-27 00:15:14 W. Europe Summer Time; Protokoll: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log`.
+- Prompt-05-Vorprüfung: `pytest -q` ergab 50 bestandene Tests. ROCm-Schrittzeit Planner: 128 =
   0,0106 s (0,59 Mio. Parameter), 256 = 0,0135 s (2,30 Mio.). Tagger-, Planner-,
   Song-Passung- und v3-Smokes bestanden. Windows Update ist bis 2026-09-27 19:50 UTC
-  pausiert. Der freistehende Nachtlauf startet nach dem geprüften Commit.
+  pausiert. Commit `2061372` ist gepusht; kein Modell wird automatisch in die App übernommen.
 - Prompt sol-01 ist am 26.09.2026
   abgeschlossen: 2.000 menschliche Validierungs-Maps und 2.997 gültige Maps aus 3.000
   Manifestzeilen; 286 passende Validierungspaare wurden verbunden. Bericht:
@@ -189,6 +189,11 @@ Slidern im Kiai, `sv_at`).
   Messlatte für Blindtests. Prompt 03 entsprechend überarbeitet (größeres Modell erlaubt,
   Zielwerte, Krücken, Blindtest-Material).
 
+**Stärke laut Nutzer (Blindtest):** BeatMap AI ist pro Song deutlich **konsistenter** – es
+wählt eine Musterart (z. B. Fünfeck-Jumps) und zieht sie durch die Map; Mapperatorinator
+wechselt das Jump-Muster in jedem Jump-Teil. Muss in v3/04 erhalten bleiben (Wiederholung
+mit Variation nach Songteilen, nicht stumpf – `pattern_stats.py`: `stale_repeat_pct`,
+`repeated_windows_pct`).
 **Nächster Blindtest (nach dem Nachtlauf, Claude Code):** fair nach Sternen – erst
 Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (heute + v3)
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
@@ -224,10 +229,10 @@ Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
 | 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
-| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | wartet auf 04 |
-| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **als Nächstes** |
-| 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **bereit** |
-| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | wartet auf 03 |
+| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **wartet auf Phase F** |
+| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **läuft** |
+| 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **läuft** |
+| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **wartet auf Phase E** |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
 - Python: `.venv-rocm\Scripts\python.exe` (PyTorch 2.9 + ROCm 7.2.1, AMD RX 7700 XT).

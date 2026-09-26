@@ -14,6 +14,11 @@ GPU-Trainings gleichzeitig.
 - Der Generator hat inzwischen Regeln, die Schwächen von v2 abfangen (siehe unten
   „Krücken“). v3 soll das selbst können, sodass die Krücken gelockert werden können.
 
+**Erhalten (Stärke laut Nutzer):** v2 ist pro Song konsistenter als Mapperatorinator – es
+wählt eine Musterart und zieht sie durch; Mapperatorinator wechselt in jedem Jump-Teil.
+v3 darf das nicht verlieren: `repeated_windows_pct` und `stale_repeat_pct` aus
+`pattern_stats.py` für v2/v3 berichten (Wiederholung ja, stumpf nein).
+
 ## Ziel
 Das Sequenzmodell (`beatmap_ai/sequence_model.py`, aktuell v2 in
 `beatmap_ai/models/sequence.pt`, 10,3 Mio. Parameter) als v3 neu trainieren, das
