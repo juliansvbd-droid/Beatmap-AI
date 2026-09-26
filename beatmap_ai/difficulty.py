@@ -103,6 +103,10 @@ STAR_TABLE = [
 # Rhythm rules (snap, gaps, stream length, slider shapes) come from the nearest named
 # preset below this star rating.
 PRESET_STARS = [("Easy", 0.0), ("Normal", 1.9), ("Hard", 2.8), ("Insane", 3.9), ("Expert", 5.0)]
+# Star rating a named difficulty aims for (typical of ranked maps with that name), so that
+# e.g. "Expert" is reliably harder than "Insane" on every song. Until a planning model
+# picks the stars per song, these are the defaults.
+DEFAULT_STARS = {"easy": 1.5, "normal": 2.0, "hard": 3.0, "insane": 4.5, "expert": 5.6}
 
 
 def preset_for_stars(stars: float) -> DifficultyPreset:

@@ -30,6 +30,9 @@ METRICS = (
     ("repeat", "davon wiederholend", "{:.0%}"),
     ("curved", "davon gebogen", "{:.0%}"),
     ("short_slider", "Slider < 1 Beat", "{:.0%}"),
+    ("tiny_slider", "Slider kürzer als 2 Kreise", "{:.0%}"),
+    ("round_slider", "Kreisslider (Bogen > 1,6× Sehne)", "{:.0%}"),
+    ("slider_px", "Slider-Länge (px, median)", "{:.0f}"),
     ("g_quarter", "Abstand 1/4 Beat", "{:.0%}"),
     ("g_half", "Abstand 1/2 Beat", "{:.0%}"),
     ("g_one", "Abstand 1 Beat", "{:.0%}"),
@@ -66,8 +69,15 @@ def describe(text: str) -> dict | None:
                                and _chord(o) < 0.9 * o.length for o in sliders])
         s["short_slider"] = np.mean([(bm.end_time(o) - o.time) / o.slides < 0.9 * beat_of[id(o)]
                                      for o in sliders])
+        radius = 54.4 - 4.48 * bm.cs
+        s["tiny_slider"] = np.mean([o.length < 4 * radius for o in sliders])
+        s["round_slider"] = np.mean([o.curve_type in ("B", "P") and len(o.curve_points) >= 2
+                                     and o.length > 1.6 * max(_chord(o), 1.0) for o in sliders])
+        s["slider_px"] = float(np.median([o.length for o in sliders]))
     else:
         s["repeat"] = s["curved"] = s["short_slider"] = 0.0
+        s["tiny_slider"] = s["round_slider"] = 0.0
+        s["slider_px"] = float("nan")
 
     gaps, dists, ds1, jumps = [], [], [], []
     for a, b in zip(objs, objs[1:]):

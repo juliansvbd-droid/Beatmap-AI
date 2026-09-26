@@ -314,7 +314,9 @@ def plan_objects(
                                         max_slider, variety_ratio(variety))
     frame_of = np.rint(grid.times * FPS / 1000.0).astype(int)
     level = stars if stars is not None else stars_for_density(preset.density)
-    kick_confidence = float(np.interp(level, [4.0, 6.0], [0.85, 0.6]))
+    # Kick sliders (a quarter beat, no held sound): about a tenth of the sliders at 3-6
+    # stars and a third from 6. A laxer bar made nearly all sliders of a 4-star map kicks.
+    kick_confidence = float(np.interp(level, [4.0, 6.0, 7.0], [0.92, 0.8, 0.65]))
     # Mappers use back-and-forth sliders over quick notes, most on easier maps (about a
     # fifth of the sliders below 3 stars, a tenth from 5). Easy maps have more music
     # that qualifies, so they need a lower chance to end up at the same share.

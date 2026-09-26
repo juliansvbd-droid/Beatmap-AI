@@ -55,6 +55,12 @@ CHORD_QUANTILES = {
     6: (0.07, 0.142, 0.272, 0.509, 0.804, 0.940, 0.984, 1.0, 1.0),
     7: (0.05, 0.095, 0.222, 0.510, 0.810, 0.941, 0.985, 1.0, 1.0),
 }
+STRAIGHT_BELOW_PX = 70.0  # shorter sliders are drawn straight
+FULL_BEND_FROM_PX = 110.0  # from here on, curvature as drawn from CHORD_QUANTILES
+# The table overstates bends as they come out of the renderer: at full strength 4-5 star
+# maps got 12-17 % bent sliders (chord < 0.9 x length) and 3-7 % near-circles, ranked maps
+# of those stars 4 % and 1 % (scripts/compare_maps.py). Half the bend matches them.
+BEND_SCALE = 0.5
 
 
 def human_chord(chord: tuple[float, float], stars: float, length: float,
@@ -63,13 +69,16 @@ def human_chord(chord: tuple[float, float], stars: float, length: float,
 
     The chord head is a mixture of Gaussians over a point on (roughly) a ring -- a
     straight slider in any direction -- and fits that ring poorly: its draws land
-    inside it, so most sliders came out curved. Short sliders stay straight."""
+    inside it, so most sliders came out curved. Short sliders stay straight: mappers
+    practically never bend one under ~70 px (a bent short slider reads as a small circle),
+    and bend them less up to ~110 px."""
     angle = math.atan2(chord[1], chord[0])
-    if length < 50.0:
-        ratio = 1.0
-    else:
+    ratio = 1.0
+    if length >= STRAIGHT_BELOW_PX:
         levels = CHORD_QUANTILES[int(np.clip(round(stars), 1, 7))]
         ratio = float(np.interp(rng.random(), CHORD_LEVELS, levels))
+        fade = min((length - STRAIGHT_BELOW_PX) / (FULL_BEND_FROM_PX - STRAIGHT_BELOW_PX), 1.0)
+        ratio = 1.0 - (1.0 - ratio) * fade * BEND_SCALE
     return ratio * math.cos(angle), ratio * math.sin(angle)
 
 
@@ -287,6 +296,9 @@ class SequencePlacer:
         self.grid = grid  # quarter-beat TickGrid
         self.threshold = threshold
         self.rng = rng
+        # Slider curvature is drawn per slider (by its time), not per candidate, so that
+        # Best-of-N with a critic cannot pick bent sliders over straight ones.
+        self.bend_seed = int(rng.integers(0, 2**31 - 1))
         self.temperature = temperature
         self.rhythm_temperature = rhythm_temperature
         self.stars = float(conditions.get("stars") or 4.0)
@@ -374,7 +386,7 @@ class SequencePlacer:
             if item.kind == "slider":
                 chord = sample_mixture(out["chord"], self.rng, self.temperature)
                 choice.chord = human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                           float(rows[i, LEN]), self.rng)
+                                           float(rows[i, LEN]), self._bend_rng(item))
                 bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
                 choice.side = 1.0 if self.rng.random() < bend_p else -1.0
             choices.append(choice)
@@ -417,6 +429,9 @@ class SequencePlacer:
         j = int(np.searchsorted(times, item.time))
         lo = max(j - 1, 0)
         return lo + int(np.argmin(np.abs(times[lo:j + 1] - item.time)))
+
+    def _bend_rng(self, item) -> np.random.Generator:
+        return np.random.default_rng((self.bend_seed, int(round(item.time))))
 
     def _step_placement(self, item, out_plan, choices, rows, walker, scale, rng):
         from .placement_model import Choice, sample_mixture
@@ -472,7 +487,7 @@ class SequencePlacer:
         if item.kind == "slider":
             chord = sample_mixture(out["chord"], rng, self.temperature)
             choice.chord = human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                       float(rows[i, LEN]), rng)
+                                       float(rows[i, LEN]), self._bend_rng(item))
             bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
             choice.side = 1.0 if rng.random() < bend_p else -1.0
         choices.append(choice)

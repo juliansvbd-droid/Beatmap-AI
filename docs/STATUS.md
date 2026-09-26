@@ -43,7 +43,7 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 | Rhythmus (wann Noten kommen) | `beatmap_ai/models/rhythm.pt` | 6,06 Mio. | Conformer v4, 10.387 Songs, Schwellen je Sternbereich |
 | Platzierung (wo, Muster, Slider-Richtung, Hitsounds) | `beatmap_ai/models/sequence.pt` | 10,33 Mio. | Sequenzmodell v2 (fertig trainiert), wird per `SequencePlacer.follow` entlang des Rhythmus benutzt |
 | Rückfall-Platzierung | `beatmap_ai/models/placement.pt` | 4,90 Mio. | v1, nur wenn sequence.pt fehlt |
-| Bewerter (Critic) | `beatmap_ai/models/critic.pt` | 4,88 Mio. | aktiv (Pre-LN Transformer v1, Backup in `checkpoints/critic/critic_v1.pt`) |
+| Bewerter (Critic) | `beatmap_ai/models/critic.pt` (v1) / `critic-v2.pt` (Luna) | je 4,88 Mio. | v1 Standard; in der UI wählbar Alt/Neu/Aus |
 | Tempo-Wahl | `beatmap_ai/timing.py` (`TEMPO_WEIGHTS`) | 8 Gewichte | aktiv |
 
 Generator-Ablauf (`beatmap_ai/generator.py` → `generate_beatmap`): Rhythmus aus Frame-KI
@@ -100,17 +100,23 @@ Slidern im Kiai, `sv_at`).
   Kontrolle (SAIDA: Hard 3,68 → 3,87★ mit größeren Sprüngen, Insane 4,27 → 4,00★ und
   Expert 4,10 → 3,86★ mit viel mehr Stacks), weil benannte Schwierigkeiten kein Sternziel
   haben. UI hat jetzt einen Schalter „Bewerter-KI“ (`--no-critic`).
-  **Geplant von Claude Code nach 01b, noch offen:** (a) feste Sternziele
-  für die Namen (Normal 2,0 / Hard 3,0 / Insane 4,3 / Expert 5,5) – nur als Standard, bis
-  die Vorplanungs-KI (Prompt 04) die Sterne pro Diff und Song festlegt (Nutzerwunsch); (b) Sternziel im Sequenz-
-  Zweig von `generate_beatmap`: nicht „immer erst Sprünge“ (Nutzer: „nicht NUR Sprünge,
-  halt das was passt“), sondern beide Wege probieren – mehr Noten nur dort, wo die
-  Rhythmus-KI sie sicher in der Musik hört (kein `force` auf unsichere Ticks), und größere
-  Sprünge über `follow(scale=…)` (echtes Würfeln, kein Strecken) – und die Variante nehmen,
-  die für die Sternstufe am menschlichsten ist (Muster-Referenz aus sol-01 / Critic aus
-  01b). Heute landet 5★ bei 130 BPM über den Dichte-Schritt in Streams (6,4 Noten/s
-  statt ~3,9, 65 % 1/4-Abstände, 29 % Stacks); (c) bei niedrigen Sternen scharfe
-  Wendungen dämpfen. Danach mit `scripts/compare_maps.py` gegen Mensch messen.
+  **Erledigt 26.09. nachmittags (Claude Code):** (a) feste Sternziele für die Namen
+  (`difficulty.DEFAULT_STARS`: Easy 1,5 / Normal 2,0 / Hard 3,0 / Insane 4,5 / Expert 5,6;
+  nur Standard, bis die Vorplanungs-KI aus Prompt 04 die Sterne pro Song festlegt) – auf
+  3 Songs × 4 Diffs jetzt alle innerhalb ±0,26★. Sternsuche ohne Critic, nur das Ergebnis
+  wird mit Critic gerankt (Rückfall auf das Suchergebnis, wenn der Critic die Sterne um
+  >0,2 verschiebt): ~100 s statt 180–360 s pro Song mit 4 Diffs. (b) Slider: Kick-Slider
+  seltener (`rhythm.kick_confidence` 0,92/0,8/0,65 bei 4/6/7★; vorher 87 % 1/4-Slider bei
+  Expert, jetzt 0–3 %, Mensch 11–15 %); Slider < 70 px gerade, bis 110 px weniger gebogen,
+  Biegung insgesamt halbiert (`sequence_model.BEND_SCALE`; gebogen jetzt 9 %, Mensch 7 %;
+  fast Kreis 2–3 %, Mensch ~1 %); Biegung pro Slider fest gewürfelt, damit der Critic sie
+  nicht aussuchen kann. UI: Auswahl Bewerter-KI Alt/Neu/Aus
+  (`beatmap_ai/models/critic-v2.pt` = Lunas Critic), Mausrad verstellt keine Auswahlfelder
+  mehr (hat vorher Stil/Critic beim Scrollen zurückgesetzt).
+  **Noch offen:** Sternziel über „was zur Musik passt“ statt Notenmenge (langsame Songs:
+  Expert 6,2 Noten/s statt ~3,9, 3 % Slider, 13 % Stacks); Normal/Hard noch zu viel
+  Zickzack (scharfe Wendungen 42–81 % statt 8–18 %) und zu viele neue Combos bei langsamen
+  Songs (1,5–2,4 Noten pro Combo statt ~5).
 - Offen: noch nicht perfekt; Maps fühlen sich noch nicht individuell für den Song an;
   bei hohen Sternen inkonsistenter; Jump-Muster (Zickzack, Vielecke) fehlen bzw. zu
   zufällig; Doubles zu selten (1,0 statt 2,4 pro 100 Noten).

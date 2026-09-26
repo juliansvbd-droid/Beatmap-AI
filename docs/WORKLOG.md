@@ -3,6 +3,18 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 nachmittags – Claude Code (Opus 5.5)
+- Nutzertests (SAIDA, Cavalona) aus osu!lazer ausgelesen (`D:\osu\datailes`, lazer
+  löscht importierte .osz) und mit neuem torch-freiem `scripts/compare_maps.py` gegen
+  menschliche Maps verglichen (Ordner `Vergleich/`).
+- Generator: Sternziele für benannte Difficulties (`difficulty.DEFAULT_STARS`),
+  Sternsuche ohne Critic + Critic nur am Ende mit Rückfall (`generator.generate_beatmap`).
+- Slider: `rhythm.kick_confidence` strenger; `sequence_model.human_chord` gerade unter
+  70 px, `BEND_SCALE` 0,5, Biegung pro Slider fest (`SequencePlacer._bend_rng`).
+- UI: Bewerter-KI Alt/Neu/Aus (`critic-v2.pt` = Lunas Checkpoint), Mausrad-Fehler in
+  Auswahlfeldern behoben. 38 Tests grün. Zahlen in STATUS („Rückmeldungen“).
+- Offen: Sternziel über passende Mittel statt Notenmenge; Zickzack/Combos bei Normal/Hard.
+
 ## 2026-09-26 07:06 – Codex (Luna-Nachtauftrag)
 - Phasen A–H für `D:\osu\Training-UnlockedBrick32\Luna-Nachtauftrag.md` abgeschlossen. Öffentliche osu!-Daten ohne Anmeldung abgerufen: 2.167,89 pp, Rang 457.436, 93,4878 % Accuracy; seit 18.09. +133,03 pp, Rang 29.144 Plätze besser, Accuracy +0,94 Punkte. 39/200 Top-Plays sind neu; im Recent: 34 Plays, 13 Passes, 21 Fails, 7 wahrscheinliche Abbrüche.
 - `data\plan_6sterne.json`: 6 Skills mit 32 Stufen (alle bisherigen Stufen und Status erhalten, dazu 24 Maps aus 24 installierten Sets). Ein bei der QA entdeckter Merge-Fehler, der alte Stufen ersetzt hätte, wurde vor Abschluss korrigiert; der Hilfsgenerator erhält verschachtelte Stufen jetzt korrekt. `data\tempo_training.json`: 14 vertraute Maps mit 1,1×/1,2× BPM und AR.

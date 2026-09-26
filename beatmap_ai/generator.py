@@ -10,7 +10,8 @@ from pathlib import Path
 import numpy as np
 
 from .audio import AudioFeatures, compute_features, load_audio, preview_time_ms
-from .difficulty import DifficultyPreset, get_preset, preset_for_stars, stars_for_density
+from .difficulty import (DEFAULT_STARS, DifficultyPreset, get_preset, preset_for_stars,
+                         stars_for_density)
 from .structure import copy_patterns, copy_rhythm, copy_sections, find_repeats, kiai_sections
 from .style import map_style, star_rating, style_tags
 from .osu import Beatmap, TimingPoint, write_osz
@@ -146,8 +147,14 @@ def generate_beatmap(
     ``repeats`` (structure.find_repeats) are mapped like their first occurrence, and
     loud repeated sections get kiai time. ``variety`` (0..1) trades closeness to the beat
     for a more varied rhythm with longer sliders (see rhythm.variety_ratio)."""
+    name = None
+    if isinstance(difficulty, str) and difficulty.lower() in DEFAULT_STARS:
+        # A named difficulty aims for the stars typical of that name (and keeps its name).
+        name, difficulty = get_preset(difficulty).name, DEFAULT_STARS[difficulty.lower()]
     stars = None if isinstance(difficulty, str) else float(difficulty)
     preset = get_preset(difficulty) if stars is None else preset_for_stars(stars)
+    if name is not None:
+        preset = replace(preset, name=name)
     if model is not None:
         from .model import threshold_for
         threshold = threshold_for(model, stars if stars is not None
@@ -160,7 +167,7 @@ def generate_beatmap(
     notes_for: dict[int, tuple] = {}  # id(plan) -> (plan, the frame model's note probabilities)
     # Star rating asked of the models, relative to the target (see the sequence branch of
     # the star targeting below): "make it harder" instead of "space it further apart".
-    steer = {"k": 1.0}
+    steer = {"k": 1.0, "critic": True}
 
     def build(density_scale: float, force_density: bool = False):
         rng = np.random.default_rng(seed)
@@ -211,7 +218,8 @@ def generate_beatmap(
         from .audio import sample_peak
         from .rhythm import heuristic_scores, make_tick_grid
         from .sequence_model import SequencePlacer
-        key = (id(plan), round(base, 3), steer["k"])
+        ranked = critic is not None and steer["critic"]
+        key = (id(plan), round(base, 3), steer["k"], ranked)
         if key in sampled:
             return sampled[key]
         quarter = make_tick_grid(timing, features.duration * 1000.0, 4)
@@ -226,7 +234,8 @@ def generate_beatmap(
                                 style_tags(style), scores, quarter, threshold,
                                 np.random.default_rng(seed + 1000), sv_at=sv_at)
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
-                                          critic=critic, candidates=candidates)
+                                          critic=critic if ranked else None,
+                                          candidates=candidates)
         sampled[key] = (plan, followed, choices, placer)
         return sampled[key]
 
@@ -267,10 +276,13 @@ def generate_beatmap(
         return bm
 
     plan = build(1.0)
+    # With a star target the search places without the critic first (see below).
+    steer["critic"] = stars is None
     bm = place(plan, 1.0)
     reached = star_rating(bm.to_osu_string()) if stars is not None else None
     if reached is None:
-        return bm
+        steer["critic"] = True
+        return place(plan, 1.0)
 
     # Reach the star rating the way a mapper would: spacing follows the style (large for
     # jump maps, the typical spacing of these stars otherwise); if that is far too easy
@@ -333,6 +345,12 @@ def generate_beatmap(
                 if best[0] < 0.15:
                     break
                 lo, hi = (density_scale, hi) if actual < stars else (lo, density_scale)
+        if critic is not None:
+            # The search above placed without the critic (4x faster); rank the chosen
+            # rhythm's placement with it now and fine-tune that one.
+            steer["critic"] = True
+            searched, best = best, (float("inf"), stars, None)
+            consider(place(plan, 1.0))
         lo, hi = 0.85, 1.18
         for _ in range(6):
             if best[0] < 0.05:
@@ -340,6 +358,8 @@ def generate_beatmap(
             mid = (lo * hi) ** 0.5
             actual = consider(place(plan, mid))
             lo, hi = (mid, hi) if actual < stars else (lo, mid)
+        if critic is not None and best[0] > searched[0] + 0.2:
+            best = searched  # the critic's pick moved the stars too far: keep the search's
         if log is not None:
             log(f"  [{preset.name}] target {stars:.2f}*, reached {best[1]:.2f}* "
                 f"(asked the models for {stars * best_k:.2f}*)")
