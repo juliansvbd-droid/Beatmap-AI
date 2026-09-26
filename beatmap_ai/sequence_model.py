@@ -302,6 +302,10 @@ class SequencePlacer:
         self.temperature = temperature
         self.rhythm_temperature = rhythm_temperature
         self.stars = float(conditions.get("stars") or 4.0)
+        # Cursor flow: mappers turn back sharply (> 120 degrees) on 8 % of the moves below 3
+        # stars, 18 % at 3-4 and about half from 4.5; the model alone did so on 35-80 % of
+        # easier maps. Keep only this share of its sharp turns (and draw again otherwise).
+        self.sharp_keep = float(np.interp(self.stars, [2.0, 3.0, 4.0, 5.0], [0.1, 0.25, 0.6, 1.0]))
         # How much the frame model's note scores weigh in on the gap choice: the sequence
         # model knows figures (doubles, pauses), the frame model hears exactly where notes go.
         self.guidance = guidance
@@ -430,6 +434,11 @@ class SequencePlacer:
         lo = max(j - 1, 0)
         return lo + int(np.argmin(np.abs(times[lo:j + 1] - item.time)))
 
+    @staticmethod
+    def _sharp(u: float, v: float) -> bool:
+        """A move that turns back by more than 120 degrees (u runs along the heading)."""
+        return math.hypot(u, v) > 20.0 and math.degrees(math.atan2(abs(v), u)) > 120.0
+
     def _bend_rng(self, item) -> np.random.Generator:
         return np.random.default_rng((self.bend_seed, int(round(item.time))))
 
@@ -476,6 +485,9 @@ class SequencePlacer:
             temp = self.temperature * (1 + 0.05 * attempt)
             u, v = sample_mixture(out["offset"], rng, temp) * OFFSET_SCALE
             if i == 0 or walker.fits(u * scale, v * scale, item.time, gap):
+                if attempt < 20 and self._sharp(u, v) and rng.random() > self.sharp_keep:
+                    fallback = fallback or Choice((float(u), float(v)))
+                    continue
                 choice = Choice((float(u), float(v)))
                 break
             if fallback is None and walker.fits(u * scale, v * scale):

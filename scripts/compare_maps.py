@@ -124,17 +124,7 @@ def describe(text: str) -> dict | None:
     s["jump_px"] = float(np.median(jumps)) if jumps else float("nan")
     s["stack"] = np.mean([d < 5 for _, d in dists])
 
-    turns = []
-    pts = [(o.x, o.y) for o in objs]
-    for p0, p1, p2 in zip(pts, pts[1:], pts[2:]):
-        v1 = (p1[0] - p0[0], p1[1] - p0[1])
-        v2 = (p2[0] - p1[0], p2[1] - p1[1])
-        if math.hypot(*v1) < 20 or math.hypot(*v2) < 20:
-            turns.append(None)
-            continue
-        cross = v1[0] * v2[1] - v1[1] * v2[0]
-        dot = v1[0] * v2[0] + v1[1] * v2[1]
-        turns.append(math.degrees(math.atan2(cross, dot)))
+    turns = cursor_turns(objs)
     valid = [t for t in turns if t is not None]
     s["sharp"] = np.mean([abs(t) > 120 for t in valid]) if valid else float("nan")
     s["straight"] = np.mean([abs(t) < 30 for t in valid]) if valid else float("nan")
@@ -144,6 +134,29 @@ def describe(text: str) -> dict | None:
     combos = sum(o.new_combo for o in objs) or 1
     s["nc_len"] = len(objs) / combos
     return s
+
+
+def cursor_turns(objs) -> list[float | None]:
+    """Signed turn (degrees) of each move into a note against the cursor's previous
+    direction, following slider bodies (the cursor ends a slider at its far end); None
+    where a move is too short (stacks) to have a direction."""
+    path = []  # (x, y, is a note start)
+    for o in objs:
+        path.append((o.x, o.y, True))
+        if o.kind == "slider" and o.curve_points and o.slides % 2 == 1:
+            path.append((*o.curve_points[-1], False))
+    turns, heading = [], None
+    for (x0, y0, _), (x1, y1, note) in zip(path, path[1:]):
+        if math.hypot(x1 - x0, y1 - y0) < 20:
+            if note:
+                turns.append(None)
+            continue
+        direction = math.atan2(y1 - y0, x1 - x0)
+        if note:
+            turns.append(None if heading is None
+                         else (math.degrees(direction - heading) + 180) % 360 - 180)
+        heading = direction
+    return turns
 
 
 def _chord(o) -> float:

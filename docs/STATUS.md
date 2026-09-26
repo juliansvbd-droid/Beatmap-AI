@@ -77,6 +77,11 @@ Slidern im Kiai, `sv_at`).
 
 ## Rückmeldungen des Nutzers (was noch stört)
 - Gut: Stil-Auswahl funktioniert, oft besser als „Auto“.
+- 26.09. nach dem Stand mit Sternzielen + Slider-Korrekturen: **„deutlich über einem
+  mittelmäßigen menschlichen Mapper“, extrem spielbar.** Rhythmus sehr gut, Qualität aber
+  schwierigkeitsabhängig. Einziger Wunsch gerade: **Platzierung noch einen kleinen Tick
+  besser.** Doubles/Triples nur, wo die Musik sie hergibt, nie „einfach so“ (Messung
+  01b-A/B: Doubles 1,5 statt 2,8 pro 100 Noten bei 4,5–6★).
 - 26.09.: Stand mit Critic v1 + Slider-Korrekturen wirkt „deutlich menschlicher“. Aber
   **Insane ist immer am besten, alle anderen Schwierigkeiten hinken hinterher.**
   Nachgemessen (`scripts/compare_maps.py`, Maps aus osu!lazer in `Vergleich/`, 2 Songs:
@@ -113,6 +118,15 @@ Slidern im Kiai, `sv_at`).
   nicht aussuchen kann. UI: Auswahl Bewerter-KI Alt/Neu/Aus
   (`beatmap_ai/models/critic-v2.pt` = Lunas Critic), Mausrad verstellt keine Auswahlfelder
   mehr (hat vorher Stil/Critic beim Scrollen zurückgesetzt).
+  **Cursor-Flow (26.09. abends):** `SequencePlacer.sharp_keep` – bei niedrigen Sternen wird
+  ein Teil der scharfen Umkehrungen (> 120°) neu gewürfelt (behalten: 10 % bei 2★, 25 % bei
+  3★, 60 % bei 4★, alle ab 5★). Gemessen entlang des Cursorwegs (inkl. Slider, so misst
+  `scripts/compare_maps.py` jetzt – die alte Messung über Objekt-Startpunkte hat das Zickzack
+  bei sliderreichen Maps stark übertrieben): Normal 1–30 % → 8–18 %, Hard 9–89 % → 5–10 %
+  (Mensch 3–9 %). Noch offen: zu wenig gerade Weiterführungen bei Normal/Hard (5–15 % statt
+  ~21 %), bei Expert eher zu wenige scharfe Wendungen (28–32 % statt ~50 %).
+  Nutzer: Rhythmus bei Songs mit Gesang im Vordergrund noch schwach (in osu! selten);
+  wichtiger: KI soll wissen, wann der Hauptteil kommt (→ Prompt 04, Songteile).
   **Noch offen:** Sternziel über „was zur Musik passt“ statt Notenmenge (langsame Songs:
   Expert 6,2 Noten/s statt ~3,9, 3 % Slider, 13 % Stacks); Normal/Hard noch zu viel
   Zickzack (scharfe Wendungen 42–81 % statt 8–18 %) und zu viele neue Combos bei langsamen
