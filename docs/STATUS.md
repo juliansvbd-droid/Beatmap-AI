@@ -232,6 +232,7 @@ Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 | 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **wartet auf Phase F** |
 | 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **läuft** |
 | 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **läuft** |
+| 06 | `prompts/06-gesang-rhythmus.md` | Vocal Rhythm Engine des Nutzers nachbauen (CPU), messen wann Mapper dem Gesang folgen | bereit (Luna, parallel zum Nachtlauf) |
 | 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **wartet auf Phase E** |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
