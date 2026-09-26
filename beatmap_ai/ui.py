@@ -35,6 +35,12 @@ STYLE_CHOICES = (
     ("Geometric – saubere Formen", "geometric"),
     ("Simple – ruhig und klar", "simple"),
 )
+# Critic for Best-of-N placement: the bundled one ("auto"), another checkpoint, or none.
+CRITIC_CHOICES = (
+    ("Alt (v1)", "auto"),
+    ("Neu (v2, von Luna)", Path(__file__).parent / "models" / "critic-v2.pt"),
+    ("Aus", None),
+)
 # Training folders preselected in the UI (several are separated by ";").
 DATA_PATHS = (DATA_PATH, PROJECT_ROOT / "best_maps")
 CHECKPOINTS_PATH = PROJECT_ROOT / "checkpoints"
@@ -280,7 +286,7 @@ class BeatmapApp(tk.Tk):
         self.style_strength_label = tk.StringVar(value="70 %")
         self.variety_var = tk.DoubleVar(value=50)
         self.variety_label = tk.StringVar(value="50 %")
-        self.critic_var = tk.BooleanVar(value=True)
+        self.critic_var = tk.StringVar(value=CRITIC_CHOICES[0][0])
 
         card = self._card(self.generate_page, "1. Song auswählen",
                           "Unterstützt MP3 und OGG. Der Künstler und Titel können aus „Künstler - Titel.mp3“ übernommen werden.")
@@ -326,8 +332,12 @@ class BeatmapApp(tk.Tk):
                  font=("Segoe UI", 9)).pack(side="left")
         tk.Label(variety_row, textvariable=self.variety_label, bg=SURFACE, fg=MUTED,
                  font=("Segoe UI", 9), width=5).pack(side="left", padx=(6, 0))
-        ttk.Checkbutton(card, text="Bewerter-KI (wählt die menschlichste von 4 Platzierungen)",
-                        variable=self.critic_var).pack(anchor="w", pady=(10, 0))
+        critic_row = ttk.Frame(card, style="Card.TFrame")
+        critic_row.pack(fill="x", pady=(10, 0))
+        tk.Label(critic_row, text="Bewerter-KI (wählt die menschlichste von 4 Platzierungen)",
+                 bg=SURFACE, fg=MUTED, font=("Segoe UI", 9)).pack(side="left")
+        ttk.Combobox(critic_row, textvariable=self.critic_var, state="readonly", width=22,
+                     values=[label for label, _ in CRITIC_CHOICES]).pack(side="left", padx=(8, 0))
 
         card = self._card(self.generate_page, "3. Ausgabe und Extras",
                           "Leere Metadatenfelder werden automatisch aus dem Dateinamen ausgefüllt.")
@@ -753,8 +763,11 @@ class BeatmapApp(tk.Tk):
         if not self.use_model_var.get():
             args.extend(("--no-model", "--rule-placement"))
         args.extend(("--variety", f"{self.variety_var.get() / 100:.2f}"))
-        if not self.critic_var.get():
+        critic = dict(CRITIC_CHOICES)[self.critic_var.get()]
+        if critic is None:
             args.append("--no-critic")
+        elif critic != "auto":
+            args.extend(("--critic", str(critic)))
         style =dict(STYLE_CHOICES)[self.style_var.get()]
         if style and self.use_model_var.get():
             args.extend(("--style", f"{style}={self.style_strength_var.get() / 100:.2f}"))
