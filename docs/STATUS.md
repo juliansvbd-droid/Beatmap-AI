@@ -212,6 +212,7 @@ messungen an eigenen Dateien und künftigen Modellen bereit.
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
 | 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | wartet auf 04 |
 | 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **als Nächstes** |
+| 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **bereit** |
 | 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | wartet auf 03 |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
