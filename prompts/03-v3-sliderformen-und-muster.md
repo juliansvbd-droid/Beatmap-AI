@@ -65,6 +65,13 @@ Bekannte Lücken von v2 (Messungen 26.09.): Abstand pro Beat bei 4,5–6★ 220 
 (40-Song-A/B aus 01b); Insane-Sprünge auf 1 Beat 130 statt ~169 px; Doubles 1,5 statt 2,8
 pro 100 Noten (4,5–6★); Stacks bei Expert oft ~20 % statt ~6 %; ohne Krücken bei
 Normal/Hard bis 30–89 % scharfe Wendungen.
+Aus dem Blindtest (`pattern_stats.py` auf `D:\Mapperatorinator\compare\`): unsere Maps haben
+viel öfter Bewegungen über dem 95. Perzentil menschlicher Maps derselben Sternstufe –
+v. a. **scharfe Wendungen bei hohem Tempo** und **Cross-Screen-Sprünge** (z. B. ALQUIMIA
+Insane 24 bzw. 15 pro 100 Objekte, Mapperatorinator 0 bzw. 1; unsere Normals 10–42 bzw.
+13–31). Genau bei ALQUIMIA Insane fand der Nutzer Mapperatorinator besser. Achtung: Sols
+Tabelle „wiederholte Muster KI 3–5 %“ stammt aus den alten Critic-Negativ-Maps ohne
+Refrain-Kopien; mit der App (`structure.copy_sections`) liegen wir bei 15–60 %.
 
 ## Krücken im Generator (Stand 26.09.; v3 soll sie überflüssig machen)
 - `SequencePlacer.sharp_keep` (verwirft scharfe Wendungen bei niedrigen Sternen),
