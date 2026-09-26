@@ -207,7 +207,11 @@ messungen an eigenen Dateien und künftigen Modellen bereit.
 - 04 Vorplanungs-KI inkl. Songteile/Hauptteil (Nutzerwunsch), ersetzt `DEFAULT_STARS`
   und Auto-Stil.
 - 02 Song-Passung + mehrere Durchgänge.
-**Bekannt, niedrige Priorität:** Rhythmus bei gesangslastigen Songs schwächer.
+**Später (Nutzerwunsch, erst nach allem anderen): Rhythmus-KI v5.** Ideen: leichte Maps
+(0–3★ F1 nur 0,67), gesangslastige Songs, Doubles/Triples nur wo die Musik sie hergibt,
+ausgewogene Daten nach Sternen × Stil (Tagger aus 03), Abschnitts-Vorgaben der
+Vorplanungs-KI (04) als Eingabe, und die heutigen Regeln (Kick-Slider, Pausen nach
+Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 
 ## Prompts für Antigravity (Reihenfolge, nie parallel)
 | Nr. | Datei | Inhalt | Status |
