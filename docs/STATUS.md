@@ -175,7 +175,7 @@ Slidern im Kiai, `sv_at`).
 - 3 Songs × 2,0/4,5/5,6★ mit beiden erzeugt; Messung `D:\Mapperatorinator\compare\compare.md`.
   S0N6F0RMYD34TH: Mapperatorinator-Timing kaputt (Start erst nach 33–57 s, Noten bei 0 ms,
   3,65★/8,4★ statt 4,5/5,6; fp32-Neuversuch: „No timing points“) – evtl. unsere Umgebung.
-- Blindtest für den Nutzer: `D:\Mapperatorinatorlindtest\` (GUERREIRO, ALQUIMIA; A/B
+- Blindtest für den Nutzer: `D:/Mapperatorinator/blindtest/` (GUERREIRO, ALQUIMIA; A/B
   zufällig, Auflösung in `AUFLOESUNG_erst_nach_dem_Spielen_oeffnen.json`). **Ergebnis des
   Nutzers steht noch aus** – danach entscheiden, ob BeatMap AI weiterentwickelt wird.
 
