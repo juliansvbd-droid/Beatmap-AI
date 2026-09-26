@@ -321,6 +321,18 @@ def plan_objects(
     # fifth of the sliders below 3 stars, a tenth from 5). Easy maps have more music
     # that qualifies, so they need a lower chance to end up at the same share.
     repeat_chance = float(np.interp(level, [2.0, 3.5, 5.0], [0.35, 0.9, 0.5]))
+    # A note only a quarter beat after a slider's end (release and hit again at once) fits
+    # the rhythm but plays awkwardly; mappers do it after 7 % of the sliders at 3.5-5.5
+    # stars and a fifth from 5.5. Otherwise they leave at least half a beat.
+    half_beat = max(int(round(0.5 * preset.divisor)), recovery)
+    quick_release = float(np.interp(level, [4.0, 5.5, 6.5], [0.08, 0.15, 0.25]))
+    # Songs held all the way through (slowed songs, pads) made nearly every note a slider;
+    # keep the share within what ranked maps of these stars use (their upper quartile).
+    slider_cut = 0.5
+    if slider_probs is not None and len(ticks):
+        at_notes = sample_peak(slider_probs, grid.times[ticks], radius=1)
+        most = float(np.interp(level, [2.0, 3.5, 5.0, 6.0], [0.68, 0.66, 0.55, 0.48]))
+        slider_cut = max(0.5, float(np.quantile(at_notes, 1.0 - most)))
     for n, tick in enumerate(ticks):
         time = float(grid.times[tick])
         local_beat_length = (
@@ -333,7 +345,8 @@ def plan_objects(
         if n + 1 < len(ticks):
             next_tick = ticks[n + 1]
             gap_beats = (next_tick - tick) / preset.divisor
-            room = min(next_tick - tick - recovery, max_slider)
+            rest = recovery if rng.random() < quick_release else half_beat
+            room = min(next_tick - tick - rest, max_slider)
             if held is not None:
                 # Hold for as long as the model hears the sound sustained.
                 run = 1
@@ -358,7 +371,7 @@ def plan_objects(
                                                  beat_length=local_beat_length))
                     continue
             if length >= min_slider and _wants_slider(
-                features, grid, scores, tick, next_tick, preset, rng, slider_probs
+                features, grid, scores, tick, next_tick, preset, rng, slider_probs, slider_cut
             ):
                 obj.kind = "slider"
                 obj.end_time = time + length * local_beat_length / preset.divisor
@@ -473,9 +486,10 @@ def spread_spacing(objects: list[PlannedObject], target_std: float) -> None:
             o.spacing = float(median * (o.spacing / median) ** contrast)
 
 
-def _wants_slider(features, grid, scores, tick, next_tick, preset, rng, slider_probs) -> bool:
+def _wants_slider(features, grid, scores, tick, next_tick, preset, rng, slider_probs,
+                  cut: float = 0.5) -> bool:
     if slider_probs is not None:
-        return bool(sample_peak(slider_probs, grid.times[tick:tick + 1], radius=1)[0] > 0.5)
+        return bool(sample_peak(slider_probs, grid.times[tick:tick + 1], radius=1)[0] > cut)
     a = int(grid.times[tick] * FPS / 1000.0)
     b = int(grid.times[next_tick] * FPS / 1000.0)
     held = features.rms[a:max(b, a + 1)]

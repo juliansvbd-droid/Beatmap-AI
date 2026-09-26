@@ -127,6 +127,13 @@ Slidern im Kiai, `sv_at`).
   ~21 %), bei Expert eher zu wenige scharfe Wendungen (28–32 % statt ~50 %).
   Nutzer: Rhythmus bei Songs mit Gesang im Vordergrund noch schwach (in osu! selten);
   wichtiger: KI soll wissen, wann der Hauptteil kommt (→ Prompt 04, Songteile).
+  **Slider spielbarer (26.09. abends, Nutzer: „zu viele Slider, rhythmisch ok, spielerisch
+  unangenehm“):** Ursache war eine Note nur 1/4 Beat nach dem Slider-Ende (Insane/Expert
+  52–87 %, Mensch 7–21 %). `rhythm.plan_objects`: nach Slidern meist ½ Beat Pause, kurze
+  Pause nur mit `quick_release` (8/15/25 % bei 4/5,5/6,5★) → jetzt 8–16 %. Slider-Anteil
+  gedeckelt auf das obere Quartil menschlicher Maps (`slider_cut`, 68/66/55/48 % bei
+  2/3,5/5/6★): Normal 85–90 % → 49–55 %. Nebenwirkung: bei dichten Songs Insane/Expert
+  teils nur 8–18 % Slider (Mensch 38–45 %) – beobachten.
   **Noch offen:** Sternziel über „was zur Musik passt“ statt Notenmenge (langsame Songs:
   Expert 6,2 Noten/s statt ~3,9, 3 % Slider, 13 % Stacks); Normal/Hard noch zu viel
   Zickzack (scharfe Wendungen 42–81 % statt 8–18 %) und zu viele neue Combos bei langsamen
