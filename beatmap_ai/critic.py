@@ -252,6 +252,7 @@ def train_critic(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=1e-5)
 
     loader = critic_batch_stream(shared, window, batch_size, seed, workers=workers)
+    log("Training with 50% per-window dropout on slider feature columns 9:12.")
 
     init_val = evaluate_critic(model, val_batches, device)
     log(f"Initial val loss: {init_val['loss']:.4f}, acc: {init_val['accuracy']:.3%}, auc: {init_val['auc']:.4f}")
@@ -267,6 +268,11 @@ def train_critic(
             x = torch.from_numpy(batch_data["x"]).to(device).float()
             mask = torch.from_numpy(batch_data["mask"]).to(device).float()
             label = torch.from_numpy(batch_data["label"]).to(device).float()
+
+            # Slider timing/length is matched within each pair; dropout prevents
+            # the classifier from depending on slider fields as a shortcut.
+            drop_slider = torch.rand((x.shape[0], 1, 1), device=device) < 0.5
+            x[:, :, 9:12] = x[:, :, 9:12].masked_fill(drop_slider, 0.0)
 
             logits = model(x, mask)
             loss = F.binary_cross_entropy_with_logits(logits, label)

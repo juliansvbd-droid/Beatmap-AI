@@ -1,16 +1,41 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-26 02:36, von Codex._
+_Zuletzt aktualisiert: 2026-09-26 07:06, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **26.09.2026 02:36 – Codex, Prompt 01b:** Nachtrag im Generator, gepaarten Loader,
-  Critic-Diagnostik und A/B-Skript umgesetzt; Syntaxprüfung erfolgreich. Die ROCm-UI mit
-  PyTorch wurde auf Nutzerfreigabe geschlossen; der Prozesscheck ist frei. Jetzt läuft die
-  Neuerzeugung von 3.000 Paaren (je 750 pro Sternbereich, möglichst mindestens ein Drittel
-  Kiai-Fenster) nach `D:\BeatMap-AI-Dataset\critic_negatives_paired\`. Log
-  `D:\BeatMap-AI-Dataset\critic_paired_generation.log`. Danach folgen die 200-Paar-Prüfung,
-  Critic-Training und 40-Song-Messung. Trainings-Worker laden `critic_data.py` ohne PyTorch.
+- Keine laufenden Jobs. Prompt 01b ist am 26.09.2026 abgeschlossen und ausgewertet.
+  Die Dateinamenbereinigung greift jetzt auch **nach** dem Kürzen (`[:60]` und `[:40]`),
+  wodurch der TUYU-Pfadfehler behoben ist. Neu erzeugt wurden 3.000 Paare, je 750 pro
+  Sternbereich; Kiai-Fenster: `<3`: 252, `3-4.5`: 318, `4.5-6`: 368, `6+`: 341.
+  Ausgabe/Manifest: `D:\BeatMap-AI-Dataset\critic_negatives_paired\`; Log:
+  `D:\BeatMap-AI-Dataset\critic_paired_generation_resume2.log`. Die Vollprüfung über alle
+  3.000 Paare meldet keine fehlenden Dateien/Quellen und keine Rhythmus-/Timingpunkt-Abweichungen.
+  Slider-Pixellänge/Beat: Mittel 163.08821 in beiden Gruppen (mittlere Paardifferenz 0.00011);
+  Abstand/Beat: 0.63094 (Paardifferenz 0.00000052); Beat-Phase: 0.68388 (Paardifferenz
+  <0.00000001). Kiai-Fenster: 1.279/3.000. In der sauberen 200-Paar-Featureprüfung gab es
+  0 Rhythmus-/Timingpunkt-Abweichungen; 139/200 Fenster sind Kiai.
+  Single-Process-Training (15 Epochen, `--workers 0`): 90,33 % Accuracy / 0,9593 AUC.
+  Jitter: 90,04 % / 0,9587; Audio-Shuffle: 89,45 % / 0,9607; Audio genullt: 90,63 % / 0,9644.
+  Slider genullt: 87,70 % / 0,9489; Position genullt: 50,00 % / 0,5000. Checkpoint:
+  `D:\BeatMap-AI-Dataset\critic_paired.pt`; Trainingslog:
+  `D:\BeatMap-AI-Dataset\critic_paired_training_dropout.log`. Eine frühe Variante mit
+  `--workers 4` wurde beendet, als Spawn-Prozesse PyTorch importierten; das abgeschlossene
+  Training nutzte ausschließlich `--workers 0`.
+  A/B auf 40 Validierungssongs und allen 247 Difficulties (Best-of-4) ist beendet.
+  Rhythmus-F1 ist in allen drei Varianten gleich: 0,671 insgesamt; je Sternbereich `<3`: 0,561,
+  `3-4.5`: 0,652, `4.5-6`: 0,736, `6+`: 0,763. Bewegungsfehler gegen Menschen:
+  Baseline 0,2305; alter Critic 0,2104; neuer Critic 0,2146. Der neue Critic verbessert
+  die Baseline, erreicht aber nicht den alten Critic; er wurde nicht
+  nach `beatmap_ai/models/critic.pt` übernommen. A/B-Log mit allen Bewegungsmetriken je
+  Sternbereich: `D:\BeatMap-AI-Dataset\critic_paired_ab.log`. Generation pro Difficulty:
+  3,39 s Baseline, 13,79 s alter Critic, 13,80 s neuer Critic (4,1× Laufzeit).
+  Es läuft kein Python-/PyTorch-Prozess.
+
+## Letzter externer Auftrag (26.09.2026)
+- Luna-Nachtauftrag in `D:\osu\Training-UnlockedBrick32` abgeschlossen. Öffentliche Profildaten ausgewertet; 6★-Track mit 24 installierten Maps und 14 Tempo-Maps erstellt.
+- 120 neue `.osz`-Sets (883.317.333 Bytes) nach `D:\osu\downloads\neu-6sterne\` geladen und geprüft. 1/15 Sets erfüllt im gefundenen Pool den exakten hohen AR-Bereich; 14 Ergänzungen sind im Manifest gekennzeichnet.
+- Trainingsplan, Morgenbericht und Importhilfe liegen im Trainingsordner. Noch nicht importiert: osu! lief nicht und wurde nicht gestartet. PC-Wachhalter ist zurückgesetzt; geschützte Konfigurationen blieben unverändert.
 
 ## Was die App gerade benutzt (`Start BeatMap AI.bat` → `.venv-rocm`)
 | Aufgabe | Datei | Parameter | Stand |
@@ -35,24 +60,67 @@ Slidern im Kiai, `sv_at`).
   Wendungen 30 → 31 %, hin und zurück 7,7 → 6,7 %, Überdeckungen 2,1 → 0,7 %.
 - Slider (nach den Korrekturen vom 25.09. abends): gebogen 3,5★ 11 % (Mensch 7 %),
   Kreisslider 0–2 %, wiederholende Slider vorhanden.
-- **Bewerter-KI (Critic v1 Stand)**:
-  - Val Accuracy: 98,24 % (Shortcut-Problem: Positiv/Negativ-Diskrepanz bei Songs & Sternen, Frame-Rhythmus).
-  - A/B Best-of-4: Critic Score stieg von 1,30 % auf 4,36 %, Bewegungsfluss verbessert.
-  - Nachbesserung läuft (Prompt 01b) für echten Platzierungs-Fokus.
+- **Bewerter-KI (Critic v1 bleibt aktiv; Prompt 01b ausgewertet)**:
+  - 3.000 gepaarte Negativ-Maps, balanciert mit je 750 pro Sternbereich; Positiv/Negativ
+    stimmen pro Paar bei Song, Sternen und Rhythmus überein. Sterne, Dichte und Objektzahl
+    sind im Loader ausgeglichen (beide Gruppen: 4,47 ± 1,71★, 95,6 ± 3,3 Objekte,
+    Dichte 3,684 ± 1,814; gepaarte Differenzen 0).
+  - Bestes Training: 90,33 % Accuracy / 0,9593 AUC; Jitter 90,04 % / 0,9587.
+    Audio-Shuffle 89,45 % / 0,9607 und genulltes Audio 90,63 % / 0,9644 zeigen weiterhin
+    geringe Audionutzung. Genullte Slider-Merkmale: 87,70 % / 0,9489; genullte Positions-
+    Merkmale: 50,00 % / 0,5000.
+  - A/B 40 Songs / 247 Difficulties: Critic Probability 12,465 % Baseline → 20,447 % alter →
+    50,807 % neuer Critic; Rhythmus-F1 bleibt in allen Varianten 0,671. Der normalisierte
+    Bewegungsfehler sinkt mit dem alten Critic auf 0,2104, steigt mit dem neuen aber auf
+    0,2146 (Baseline 0,2305). Deshalb bleibt `beatmap_ai/models/critic.pt` auf v1; das neue
+    Modell liegt nur unter `D:\BeatMap-AI-Dataset\critic_paired.pt`.
 
 ## Rückmeldungen des Nutzers (was noch stört)
 - Gut: Stil-Auswahl funktioniert, oft besser als „Auto“.
+- 26.09.: Stand mit Critic v1 + Slider-Korrekturen wirkt „deutlich menschlicher“. Aber
+  **Insane ist immer am besten, alle anderen Schwierigkeiten hinken hinterher.**
+  Nachgemessen (`scripts/compare_maps.py`, Maps aus osu!lazer in `Vergleich/`, 2 Songs:
+  SEM SAIDA 130 BPM, Cavalona 205 BPM; vor Critic vs. Critic v1 vs. 60 menschliche Maps
+  je Sternbereich):
+  1. **Expert ist nicht schwerer als Insane** (SAIDA 3,9–4,1★ vs. 4,0–4,3★; Cavalona
+     4,5–4,8★ vs. 4,3–4,7★). Mit fester 5★-Vorgabe wird es über Streams erreicht (65 %
+     1/4-Abstände, 29 % Stacks) statt über Sprünge.
+  2. **Normal/Hard: Zickzack wie Insane.** Scharfe Wendungen >120° 36–92 % (Mensch 8–18 %),
+     „gleiche Wendung wie davor“ bei SAIDA-Hard 59–71 % (Mensch 21 %), Sprünge größer als
+     beim Menschen; SAIDA-Hard außerdem 5–6 Doubles/Triples pro 100 (Mensch <1).
+  3. **Critic v1 erhöht Stacks stark** (in fast allen Diffs, z. B. 3 → 14 %, 5 → 16 %,
+     12 → 26 %; Mensch 6–11 %). In der 01b-A/B-Messung lagen Stacks insgesamt bei 7,3 %
+     Mensch, 10,0 % Baseline, 10,8 % alter und 9,1 % neuer Critic; der neue Critic liegt
+     hier näher am Menschen, sein gesamter Bewegungsfehler ist aber trotzdem höher als beim alten.
+  4. SAIDA (Funk): kaum Slider (3–17 %, Mensch 40–57 %), zu dicht, Combos zu lang (7–11
+     statt 4–5 Noten). Bei Cavalona normal – songabhängig (Rhythmus-KI).
+  Insane liegt in fast allen Merkmalen im menschlichen Bereich.
+  Nutzer: Die Version vor dem Critic traf die Schwierigkeit besser als die mit Critic v1.
+  Passt zu den Zahlen: gleicher Rhythmus, aber Critic v1 verschiebt die Sterne ohne
+  Kontrolle (SAIDA: Hard 3,68 → 3,87★ mit größeren Sprüngen, Insane 4,27 → 4,00★ und
+  Expert 4,10 → 3,86★ mit viel mehr Stacks), weil benannte Schwierigkeiten kein Sternziel
+  haben. UI hat jetzt einen Schalter „Bewerter-KI“ (`--no-critic`).
+  **Geplant von Claude Code nach 01b, noch offen:** (a) feste Sternziele
+  für die Namen (Normal 2,0 / Hard 3,0 / Insane 4,3 / Expert 5,5) – nur als Standard, bis
+  die Vorplanungs-KI (Prompt 04) die Sterne pro Diff und Song festlegt (Nutzerwunsch); (b) Sternziel im Sequenz-
+  Zweig von `generate_beatmap`: nicht „immer erst Sprünge“ (Nutzer: „nicht NUR Sprünge,
+  halt das was passt“), sondern beide Wege probieren – mehr Noten nur dort, wo die
+  Rhythmus-KI sie sicher in der Musik hört (kein `force` auf unsichere Ticks), und größere
+  Sprünge über `follow(scale=…)` (echtes Würfeln, kein Strecken) – und die Variante nehmen,
+  die für die Sternstufe am menschlichsten ist (Muster-Referenz aus sol-01 / Critic aus
+  01b). Heute landet 5★ bei 130 BPM über den Dichte-Schritt in Streams (6,4 Noten/s
+  statt ~3,9, 65 % 1/4-Abstände, 29 % Stacks); (c) bei niedrigen Sternen scharfe
+  Wendungen dämpfen. Danach mit `scripts/compare_maps.py` gegen Mensch messen.
 - Offen: noch nicht perfekt; Maps fühlen sich noch nicht individuell für den Song an;
   bei hohen Sternen inkonsistenter; Jump-Muster (Zickzack, Vielecke) fehlen bzw. zu
   zufällig; Doubles zu selten (1,0 statt 2,4 pro 100 Noten).
 
 ## Offene Punkte / nächste Schritte
-1. **Prompt 01b (in Arbeit)**:
-   - Gepaarte Daten: Positiv = Quell-Difficulties der Negativ-Maps (gleicher Song, gleiche Sterne, gleiches Timing).
-   - Gleicher Rhythmus, andere Platzierung: 3.000 Negativ-Maps mit menschlichem Rhythmus (75 % Sequenz, 25 % Regeln).
-   - Abkürzungen abstellen: Ausgewogene Verteilung (4x 750 je Sternbereich), Jitter-Test + Audio-Shuffle-Test.
-   - Re-Training & A/B-Messung auf 40 Validierungssongs (alle Diff-Stufen).
-2. Prompt 02: Song-Passungs-KI (`prompts/02-songpassung-und-mehrere-durchgaenge.md`).
+1. **Critic-Nachbesserung:** Prompt 01b ist vollständig gemessen; das neue Modell bleibt
+   wegen des höheren Bewegungsfehlers inaktiv. Eine weitere Verbesserung des Critic ist
+   nötig, falls Prompt 02 zwingend auf einem besseren als v1 beruhen soll.
+2. Prompt 02: Song-Passungs-KI (`prompts/02-songpassung-und-mehrere-durchgaenge.md`);
+   aktuell wäre weiterhin Critic v1 aktiv.
 3. 5,5★+ nach den Slider-Korrekturen vom 25.09. noch nicht nachgemessen (GPU frei nötig).
 4. Angeboten, noch nicht entschieden: **„Auto“ wählt einen Stil per einfacher
    Songanalyse** (viele schnelle Noten → Stream, klare Beats → Jump, ruhig → Flow), bis
@@ -64,15 +132,15 @@ Slidern im Kiai, `sv_at`).
    Änderungen der verschiedenen Agenten nachvollziehbar/rückgängig machbar sind.
 7. `README.md` beschreibt an mehreren Stellen noch den älteren Stand (u. a. regelbasierte
    Platzierung als Standard und fehlende Hitsounds/Kiai), während der aktuelle Generator
-   bereits das Sequenzmodell und Kiai nutzt. Nach Abschluss von Prompt 01b aktualisieren.
+   bereits das Sequenzmodell und Kiai nutzt; weiterhin aktualisieren.
 
 ## Prompts für Antigravity (Reihenfolge, nie parallel)
 | Nr. | Datei | Inhalt | Status |
 |---|---|---|---|
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
-| 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **läuft** |
+| 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Für GPT-6 Sol, ohne GPU, parallel zu 01b möglich: Muster-Messwerkzeug (Jump-Muster, Doubles, Wiederholung, zu schwere Muster je Sternbereich) | bereit |
-| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | wartet auf 01b |
+| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | bereit (Critic v1 aktiv) |
 | 03 | `prompts/03-v3-sliderformen-und-muster.md` | v3: echte Slider-Formen, Auto-Tagging + ausgewogene Daten (Sterne × Stil), Abschnitts-Vorgaben, Muster-Messungen, AR/OD/HP/CS | wartet auf 02 |
 | 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | wartet auf 03 |
 
@@ -90,3 +158,4 @@ Slidern im Kiai, `sv_at`).
 - Validierungs-Aufteilung immer nach `beatmap_ai.dataset.is_validation(song_key(bm))`.
 - Messwerkzeuge: `beatmap-ai evaluate`, `scripts/tune_threshold.py`, `scripts/map_stats.py`,
   `scripts/eval_sequence.py` (`--follow` = so wie die App), `scripts/human_agreement.py`.
+

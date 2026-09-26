@@ -40,7 +40,10 @@ from beatmap_ai.train import resolve_device
 
 
 def sanitize_filename(name: str) -> str:
-    return re.sub(r'[<>:"/\\|?*]', "_", name)
+    # Windows drops trailing spaces/dots from path components, which can turn a
+    # generated path into a different (and nonexistent) directory on resume.
+    safe = re.sub(r'[<>:"/\\|?*]', "_", name).strip().rstrip(" .")
+    return safe or "unknown"
 
 
 def star_bucket(stars: float) -> str:
@@ -336,7 +339,10 @@ def main():
                 # Corrupt audio, skip
                 continue
 
-            song_folder_name = sanitize_filename(f"{diffs[0]['bm'].artist} - {diffs[0]['bm'].title}")[:60]
+            song_folder_name = (
+                sanitize_filename(f"{diffs[0]['bm'].artist} - {diffs[0]['bm'].title}")[:60]
+                .rstrip(" .") or "unknown"
+            )
             song_out_dir = out_dir / song_folder_name
             song_out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -430,8 +436,17 @@ def main():
                 )
                 gen_bm.hit_objects = all_objects
                 osu_content = gen_bm.to_osu_string()
+                # Keep the source multiplier's full round-trippable precision;
+                # Beatmap.to_osu_string formats difficulty values to 6 digits.
+                multiplier_line = next(
+                    line for line in osu_content.splitlines()
+                    if line.startswith("SliderMultiplier:")
+                )
+                osu_content = osu_content.replace(
+                    multiplier_line, f"SliderMultiplier:{bm.slider_multiplier!r}", 1
+                )
 
-                safe_ver = sanitize_filename(diff["bm"].version)[:40]
+                safe_ver = (sanitize_filename(diff["bm"].version)[:40].rstrip(" .") or "map")
                 file_name = f"{safe_ver}_{placer_name}_{generated_count:05d}.osu"
                 neg_file_path = song_out_dir / file_name
                 neg_file_path.write_text(osu_content, encoding="utf-8")

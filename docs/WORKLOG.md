@@ -3,6 +3,44 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 07:06 – Codex (Luna-Nachtauftrag)
+- Phasen A–H für `D:\osu\Training-UnlockedBrick32\Luna-Nachtauftrag.md` abgeschlossen. Öffentliche osu!-Daten ohne Anmeldung abgerufen: 2.167,89 pp, Rang 457.436, 93,4878 % Accuracy; seit 18.09. +133,03 pp, Rang 29.144 Plätze besser, Accuracy +0,94 Punkte. 39/200 Top-Plays sind neu; im Recent: 34 Plays, 13 Passes, 21 Fails, 7 wahrscheinliche Abbrüche.
+- `data\plan_6sterne.json`: 6 Skills mit 32 Stufen (alle bisherigen Stufen und Status erhalten, dazu 24 Maps aus 24 installierten Sets). Ein bei der QA entdeckter Merge-Fehler, der alte Stufen ersetzt hätte, wurde vor Abschluss korrigiert; der Hilfsgenerator erhält verschachtelte Stufen jetzt korrekt. `data\tempo_training.json`: 14 vertraute Maps mit 1,1×/1,2× BPM und AR.
+- 120 `.osz`-Archive/883.317.333 Bytes auf D: geladen: catboy.best 116, osu.direct 4. Alle 120 ZIPs enthalten `.osu`, keine Videos, keine `.part`; Dateinamen ASCII/≤120 Zeichen; keine Sets aus Installations-/Most-Played-Listen, keine Songduplikate, max. 2 Sets/Artist und 3/Mapper. D: hatte danach 64,35 GB frei. Es gab nur 1 passendes Set für Hohe AR 4,5–5,5★/AR 9,7–10; die übrigen 14 Plätze sind als Zusatz im Manifest markiert.
+- Berichte erstellt: `Trainingsplan-6-Sterne.md` und `Morgenbericht-2026-09-26.md`. `Neue-Maps-importieren.ps1/.cmd` bereitgelegt, aber nicht ausgeführt; osu! wurde nachts nicht gestartet. Noch nötiger Schritt: Julian doppelklickt morgens auf `Neue-Maps-importieren.cmd`.
+- Phase-H-Prüfung: UTF-8-Dateien und JSON lesbar; 24 Track-Maps sind installiert und Sterne/BPM/AR stimmen; alle 14 Tempo-Maps stimmen mit ihrer Metadatenquelle überein; geschützte Einstellungsdateien anhand von Zeitstempeln/Größen unverändert, Inhalte von `game.ini` nicht gelesen. Keeper zurückgesetzt und beendet; kein osu!-Prozess. Nichts veröffentlicht, keine Kontenaktionen, kein Commit/Push.
+
+## 2026-09-26 06:08 – Codex (Fortsetzung Prompt 01b)
+- `scripts/make_paired_negatives.py`: Die Dateinamen werden nach beiden Kürzungen (`[:60]`
+  und `[:40]`) zusätzlich mit `.rstrip(" .")` bereinigt. Damit ist der Abbruch am TUYU-Song
+  behoben; die Neuerzeugung wurde fortgesetzt und mit 3.000 Paaren abgeschlossen (je 750
+  pro Sternbereich, 1.279 Kiai-Fenster). Daten/Manifest liegen unter
+  `D:\BeatMap-AI-Dataset\critic_negatives_paired\`.
+- Der Nachtrag ist geprüft: menschlicher Slider-Multiplier und alle Timing-Punkte werden
+  übernommen; Fenster werden zufällig gewählt und im Manifest vermerkt. Die Vollprüfung
+  aller 3.000 Paare fand 0 fehlende Dateien/Quellen und 0 Rhythmus-/Timingpunkt-Abweichungen.
+  Mittlere Slider-Pixellänge/Beat 163,08821 in beiden Gruppen (Paardifferenz 0,00011),
+  Abstand/Beat 0,63094 (Differenz 0,00000052), Beat-Phase 0,68388 (Differenz <0,00000001).
+- Single-Process-Training (`--workers 0`, 15 Epochen) auf
+  `D:\BeatMap-AI-Dataset\critic_paired.pt`: 90,332 % Accuracy / 0,9593 AUC.
+  Jitter 90,039 % / 0,9587; Audio-Shuffle 89,453 % / 0,9607; Audio null 90,625 % / 0,9644;
+  Slider null 87,695 % / 0,9489; Position null 50,000 % / 0,5000. Trainingslog:
+  `D:\BeatMap-AI-Dataset\critic_paired_training_dropout.log`. Eine erste Variante mit
+  `--workers 4` wurde beendet, als Spawn-Prozesse PyTorch importierten; das fertige Training
+  verwendete ausschließlich `--workers 0`.
+- A/B abgeschlossen: 40 Validierungssongs, alle 247 Difficulties, Best-of-4.
+  Rhythmus-F1 überall gleich (gesamt 0,671); Critic Probability 12,465 % Baseline, 20,447 % alter,
+  50,807 % neuer Critic. Bewegungsfehler: 0,2305 Baseline, 0,2104 alter Critic,
+  0,2146 neuer Critic. Da der neue Critic schlechter als der alte abschneidet, wurde er
+  nicht aktiviert; `beatmap_ai/models/critic.pt` bleibt v1. Durchschnittliche Erzeugungszeit
+  je Difficulty: 3,39 s Baseline, 13,79 s alter und 13,80 s neuer Critic. Sternstufen-Tabellen
+  und übrige Bewegungsmetriken: `D:\BeatMap-AI-Dataset\critic_paired_ab.log`.
+- Geänderte Dateien: `scripts/make_paired_negatives.py`, `beatmap_ai/critic_data.py`,
+  `beatmap_ai/critic.py`, `scripts/eval_ab_critic.py`, `scripts/verify_paired_negatives.py`,
+  `docs/STATUS.md`, `docs/WORKLOG.md`. Training, Featureprüfung und A/B-Messung liefen einzeln;
+  abschließend läuft kein Python-/PyTorch-Prozess. Prompt 01b ist ausgewertet; bei Bedarf
+  folgt vor Prompt 02 eine weitere Critic-Iteration.
+
 ## 2026-09-26 – Claude Code (Opus 5.5, GitHub)
 - Git lokal eingerichtet und an das bestehende GitHub-Repo `juliansvbd-droid/Beatmap-AI`
   angehängt (alte Historie erhalten). Commit `9a37065` mit dem ganzen aktuellen Stand
