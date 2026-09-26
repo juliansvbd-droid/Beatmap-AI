@@ -215,6 +215,11 @@ class BeatmapApp(tk.Tk):
         self._build_learning_page()
 
         self.bind_all("<MouseWheel>", self._on_mousewheel, add="+")
+        # The wheel scrolls the page; by default it would also silently change the value of
+        # any dropdown under the mouse. After a pick, drop the focus so the choice is final.
+        self.unbind_class("TCombobox", "<MouseWheel>")
+        self.bind_class("TCombobox", "<<ComboboxSelected>>",
+                        lambda event: (event.widget.selection_clear(), self.focus_set()), add="+")
 
     def _scrollable(self, parent: ttk.Notebook) -> tuple[ttk.Frame, ttk.Frame]:
         """A notebook tab whose content scrolls vertically. Returns (tab, content frame)."""
