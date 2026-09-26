@@ -7,6 +7,7 @@ from beatmap_ai.difficulty import PRESETS
 from beatmap_ai.generator import analyze, approach_preempt, generate, generate_beatmap
 from beatmap_ai.osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH, parse_osu
 from beatmap_ai.placement import slider_path
+from beatmap_ai.style import star_rating
 
 
 @pytest.fixture(scope="module")
@@ -42,10 +43,14 @@ def test_generated_map_is_valid(analysis, difficulty):
                 assert -5 <= px <= PLAYFIELD_WIDTH + 5 and -5 <= py <= PLAYFIELD_HEIGHT + 5
 
 
-def test_harder_difficulties_have_more_objects(analysis):
+def test_harder_difficulties_have_more_stars(analysis):
+    # Harder is not necessarily more notes (an Expert may reach its stars with jumps), but
+    # every named difficulty must be harder than the one before.
     features, timing = analysis
-    counts = [len(generate_beatmap(features, timing, d).hit_objects) for d in PRESETS]
-    assert counts == sorted(counts)
+    stars = [star_rating(generate_beatmap(features, timing, d).to_osu_string()) for d in PRESETS]
+    if None in stars:
+        pytest.skip("rosu-pp-py not installed")
+    assert stars == sorted(stars)
 
 
 def test_generation_is_deterministic(analysis):

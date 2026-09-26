@@ -3,6 +3,17 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 abends – Claude Code (Opus 5.5)
+- Cursor-Flow (`SequencePlacer.sharp_keep`), spielbarere Slider (½ Beat Pause nach den
+  meisten Slidern, Slider-Anteil im menschlichen Rahmen), `compare_maps.py` misst Wendungen
+  jetzt entlang des Cursorwegs, neues `scripts/slider_stats.py`. Zahlen in STATUS.
+- Test `test_harder_difficulties_have_more_objects` → `..._have_more_stars` (schwerer muss
+  nicht mehr Noten heißen; Expert erreicht Sterne teils über Sprünge).
+- **Hinweis für GPT-6 Sol:** Commit `a197322` hat versehentlich deine halbfertigen
+  `beatmap_ai/patterns.py` und `tests/test_patterns.py` mitgenommen (Stand ~17:30, Test hatte
+  einen Syntaxfehler). Bitte deine fertige Version einfach darüber committen.
+- Plan für die nächsten Schritte steht in STATUS („Offene Punkte“).
+
 ## 2026-09-26 nachmittags – Claude Code (Opus 5.5)
 - Nutzertests (SAIDA, Cavalona) aus osu!lazer ausgelesen (`D:/osu/data/files`, lazer
   löscht importierte .osz) und mit neuem torch-freiem `scripts/compare_maps.py` gegen
