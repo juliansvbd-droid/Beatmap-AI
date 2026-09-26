@@ -135,24 +135,23 @@ Slidern im Kiai, `sv_at`).
   bei hohen Sternen inkonsistenter; Jump-Muster (Zickzack, Vielecke) fehlen bzw. zu
   zufällig; Doubles zu selten (1,0 statt 2,4 pro 100 Noten).
 
-## Offene Punkte / nächste Schritte
-1. **Critic-Nachbesserung:** Prompt 01b ist vollständig gemessen; das neue Modell bleibt
-   wegen des höheren Bewegungsfehlers inaktiv. Eine weitere Verbesserung des Critic ist
-   nötig, falls Prompt 02 zwingend auf einem besseren als v1 beruhen soll.
-2. Prompt 02: Song-Passungs-KI (`prompts/02-songpassung-und-mehrere-durchgaenge.md`);
-   aktuell wäre weiterhin Critic v1 aktiv.
-3. 5,5★+ nach den Slider-Korrekturen vom 25.09. noch nicht nachgemessen (GPU frei nötig).
-4. Angeboten, noch nicht entschieden: **„Auto“ wählt einen Stil per einfacher
-   Songanalyse** (viele schnelle Noten → Stream, klare Beats → Jump, ruhig → Flow), bis
-   die Vorplanungs-KI (Prompt 04) existiert. Hintergrund: Nutzer bekommt mit gewähltem
-   Stil oft bessere Maps als mit Auto. Nutzer fragen, ob gewünscht.
-5. Beim Feinschliff der Sterne (Abstände ±15 %) werden noch ~15–25 % der Sprünge
-   nachträglich gedreht → besser neu würfeln statt skalieren.
-6. Angeboten, noch nicht entschieden: **Git im Projekt einrichten** (nur lokal), damit
-   Änderungen der verschiedenen Agenten nachvollziehbar/rückgängig machbar sind.
-7. `README.md` beschreibt an mehreren Stellen noch den älteren Stand (u. a. regelbasierte
-   Platzierung als Standard und fehlende Hitsounds/Kiai), während der aktuelle Generator
-   bereits das Sequenzmodell und Kiai nutzt; weiterhin aktualisieren.
+## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
+**Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
+1. Hauptteil betonen (Zwischenlösung bis Prompt 04): in Kiai-/Refrain-Abschnitten größere
+   Sprünge, außerhalb kleinere, gleiche Gesamtsterne.
+2. Sterne über passende Mittel statt Notenmenge (Expert bei langsamen Songs: heute 5–7
+   Noten/s, 0–14 % Slider, ~20 % Stacks statt ~3,9 / 40 % / 6 %).
+3. Flow bei leichten Maps: mehr gerade Weiterführungen (5–15 % statt ~21 %).
+4. Standard-Bewerter-KI festlegen (v1/v2/aus) nach Nutzertests; 5,5★+ nachmessen.
+**Parallel ohne GPU:** `prompts/sol-01-muster-messungen.md` (GPT-6 Sol); README in einer
+Cloud-Sitzung aktualisieren.
+**Phase B – große Prompts, neue Reihenfolge 03 → 04 → 02** (nie parallel, GPU-Trainings):
+- 03 zuerst ergänzen mit den Messungen vom 26.09. (Abstände 220 vs. 350 px/Beat bei
+  4,5–6★, Doubles 1,5 vs. 2,8, Slider-Grenzen, Cursor-Flow-Messung aus compare_maps).
+- 04 Vorplanungs-KI inkl. Songteile/Hauptteil (Nutzerwunsch), ersetzt `DEFAULT_STARS`
+  und Auto-Stil.
+- 02 Song-Passung + mehrere Durchgänge.
+**Bekannt, niedrige Priorität:** Rhythmus bei gesangslastigen Songs schwächer.
 
 ## Prompts für Antigravity (Reihenfolge, nie parallel)
 | Nr. | Datei | Inhalt | Status |
