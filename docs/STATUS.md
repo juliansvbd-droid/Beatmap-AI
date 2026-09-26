@@ -166,6 +166,19 @@ Slidern im Kiai, `sv_at`).
   bei hohen Sternen inkonsistenter; Jump-Muster (Zickzack, Vielecke) fehlen bzw. zu
   zufällig; Doubles zu selten (1,0 statt 2,4 pro 100 Noten).
 
+## Vergleich mit Mapperatorinator (26.09. abends, Nutzerwunsch)
+- Nutzerziel: „die bestmöglichen KI-Maps zum Spielen“. Mapperatorinator (OliBomby, 219 Mio.
+  Parameter, ~5.700 GPU-h) ist der bekannte Stand der Technik. Lokal installiert unter
+  `D:\Mapperatorinator` (eigene venv, nutzt unser ROCm-torch per .pth, `torchaudio` aus dem
+  AMD-Repo, `sitecustomize.py` schaltet MIOpen ab; Modelle in `D:\Mapperatorinator\hf`).
+  Läuft auf der RX 7700 XT, ~65–95 s pro Difficulty. Offiziell nur Linux für AMD.
+- 3 Songs × 2,0/4,5/5,6★ mit beiden erzeugt; Messung `D:\Mapperatorinator\compare\compare.md`.
+  S0N6F0RMYD34TH: Mapperatorinator-Timing kaputt (Start erst nach 33–57 s, Noten bei 0 ms,
+  3,65★/8,4★ statt 4,5/5,6; fp32-Neuversuch: „No timing points“) – evtl. unsere Umgebung.
+- Blindtest für den Nutzer: `D:\Mapperatorinatorlindtest\` (GUERREIRO, ALQUIMIA; A/B
+  zufällig, Auflösung in `AUFLOESUNG_erst_nach_dem_Spielen_oeffnen.json`). **Ergebnis des
+  Nutzers steht noch aus** – danach entscheiden, ob BeatMap AI weiterentwickelt wird.
+
 ## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
 **Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
 1. Hauptteil betonen (Zwischenlösung bis Prompt 04): in Kiai-/Refrain-Abschnitten größere
