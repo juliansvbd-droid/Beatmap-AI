@@ -3,6 +3,16 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 – Claude Code (Opus 5.5, GitHub)
+- Git lokal eingerichtet und an das bestehende GitHub-Repo `juliansvbd-droid/Beatmap-AI`
+  angehängt (alte Historie erhalten). Commit `9a37065` mit dem ganzen aktuellen Stand
+  gepusht auf `claude/osu-beatmap-mp3-generation-f2quz1`. `.gitignore` erweitert (u. a.
+  `.venv-rocm/`, `best_maps/`, `Music/`, `Zeug`, `*.zip`).
+- `AGENTS.md`: Abschnitt „Git / GitHub“ (Nutzer hat Commits/Pushes freigegeben; vorher
+  pullen; keine Songs/Daten committen). Zweck: Cloud-Sessions (Guthaben des Nutzers) für
+  Code-Aufgaben ohne GPU/Datensatz nutzen.
+- Hinweis: Das Repo ist öffentlich; empfohlen, es auf privat zu stellen (Nutzer entscheidet).
+
 ## 2026-09-26 01:33 – Antigravity (Download Playlist 'Zeug')
 - Auf Nutzeranfrage alle 52 Lieder der Tidal-Playlist `d0d9a473-7916-4297-8287-00ee3c667b18` („Zeug“) heruntergeladen.
 - Per Tidal-API die Metadaten aller 52 Titel abgefragt und via YouTube-Audioabgleich mit minimaler Laufzeitdifferenz in bester MP3-Qualität heruntergeladen (383,7 MB gesamt).

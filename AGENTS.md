@@ -28,5 +28,16 @@ user switches between them when usage limits run out. To keep everyone in sync:
 3. Keep both in the user's language for user-facing notes (German) where it helps; code
    comments stay English.
 
+## Git / GitHub
+- The project is on GitHub: `juliansvbd-droid/Beatmap-AI`, branch
+  `claude/osu-beatmap-mp3-generation-f2quz1` (local branch `main` tracks it). Cloud agents
+  work from this repo; they have no GPU and no dataset on D:, so GPU/data tasks stay local.
+- The user has approved commits and pushes. After a finished step: `git pull` first (a cloud
+  agent may have pushed), then commit your own files with a clear message and push with
+  `git push origin main:claude/osu-beatmap-mp3-generation-f2quz1`.
+- Never commit songs, datasets or checkpoints (`.gitignore` covers `data/`, `best_maps/`,
+  `Music/`, `checkpoints/`, audio, `.osz`). Only the bundled `beatmap_ai/models/*.pt`
+  are tracked; replace one only when the prompt says the new model is better.
+
 Bulk tasks meant for another agent are written as prompts in `prompts/NN-*.md`; their
 status is tracked in `docs/STATUS.md` ("Prompts").
