@@ -280,6 +280,7 @@ class BeatmapApp(tk.Tk):
         self.style_strength_label = tk.StringVar(value="70 %")
         self.variety_var = tk.DoubleVar(value=50)
         self.variety_label = tk.StringVar(value="50 %")
+        self.critic_var = tk.BooleanVar(value=True)
 
         card = self._card(self.generate_page, "1. Song auswählen",
                           "Unterstützt MP3 und OGG. Der Künstler und Titel können aus „Künstler - Titel.mp3“ übernommen werden.")
@@ -325,6 +326,8 @@ class BeatmapApp(tk.Tk):
                  font=("Segoe UI", 9)).pack(side="left")
         tk.Label(variety_row, textvariable=self.variety_label, bg=SURFACE, fg=MUTED,
                  font=("Segoe UI", 9), width=5).pack(side="left", padx=(6, 0))
+        ttk.Checkbutton(card, text="Bewerter-KI (wählt die menschlichste von 4 Platzierungen)",
+                        variable=self.critic_var).pack(anchor="w", pady=(10, 0))
 
         card = self._card(self.generate_page, "3. Ausgabe und Extras",
                           "Leere Metadatenfelder werden automatisch aus dem Dateinamen ausgefüllt.")
@@ -750,7 +753,9 @@ class BeatmapApp(tk.Tk):
         if not self.use_model_var.get():
             args.extend(("--no-model", "--rule-placement"))
         args.extend(("--variety", f"{self.variety_var.get() / 100:.2f}"))
-        style = dict(STYLE_CHOICES)[self.style_var.get()]
+        if not self.critic_var.get():
+            args.append("--no-critic")
+        style =dict(STYLE_CHOICES)[self.style_var.get()]
         if style and self.use_model_var.get():
             args.extend(("--style", f"{style}={self.style_strength_var.get() / 100:.2f}"))
         if self.artist_var.get().strip():
