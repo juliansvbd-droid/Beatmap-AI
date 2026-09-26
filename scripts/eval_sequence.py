@@ -45,16 +45,21 @@ def main() -> None:
     parser.add_argument("--guidance", type=float, default=0.0)
     parser.add_argument("--follow", action="store_true",
                         help="rhythm from the frame model; the sequence model places it and edits doubles")
+    parser.add_argument("--no-crutches", action="store_true",
+                        help="disable human-tuned flow and slider constraints for ablation")
     parser.add_argument("--drop-below", type=float, default=0.15)
     parser.add_argument("--add-above", type=float, default=0.6)
     parser.add_argument("--critic", default=None, help="critic model checkpoint for Best-of-N")
     parser.add_argument("--candidates", type=int, default=4, help="candidates to evaluate per chunk with critic")
+    parser.add_argument("--passes", type=int, default=1, help="candidate refinement passes per section")
+    parser.add_argument("--planner", help="optional full-song pre-planner checkpoint")
+    parser.add_argument("--songfit", help="optional map-to-song checkpoint")
     args = parser.parse_args()
 
     device = inference_device()
     seq = load_sequence(args.model, device)
     import torch
-    dummy_x = torch.zeros((1, 64, 830), device=device)
+    dummy_x = torch.zeros((1, 64, seq.config["features"]), device=device)
     try:
         with torch.inference_mode():
             traced = torch.jit.trace(seq, dummy_x, strict=False)
@@ -68,6 +73,13 @@ def main() -> None:
     if args.critic:
         from beatmap_ai.critic import load_critic
         critic = load_critic(args.critic, device=device)
+    if args.songfit:
+        from beatmap_ai.songfit import SongFitScorer, load_songfit
+        critic = SongFitScorer(critic=critic, songfit=load_songfit(args.songfit, device=device))
+    planner = None
+    if args.planner:
+        from beatmap_ai.planner import load_planner
+        planner = load_planner(args.planner, device=device)
 
     songs, sources, seen = defaultdict(list), {}, set()
     for folder in args.data:
@@ -99,19 +111,27 @@ def main() -> None:
             notes = predict_all(rhythm, features, grid, {"density": density, "stars": stars})["note"]
             quarter = make_tick_grid(timing, features.duration * 1000.0, 4)
             scores = sample_peak(notes, quarter.score_times, radius=1)
+            section_profile = None
+            if planner is not None:
+                from beatmap_ai.planner import plan_song
+                section_profile = plan_song(planner, features.mel, timing.beat_length, stars)["sections"]
             placer = SequencePlacer(seq, preset, features, timing, {"density": density, "stars": stars},
                                     None, scores, quarter, threshold, rng, args.temperature,
-                                    args.rhythm_temperature, guidance=args.guidance)
+                                    args.rhythm_temperature, guidance=args.guidance,
+                                    section_profile=section_profile,
+                                    crutches=not args.no_crutches)
             if args.follow:
                 preset_rules = closest_preset(density)
                 outputs = predict_all(rhythm, features, grid, {"density": density, "stars": stars})
                 frame_plan = plan_objects(features, timing, preset_rules, np.random.default_rng(0),
                                           outputs["note"], outputs["slider"],
                                           threshold_for(rhythm, stars, threshold), "threshold",
-                                          outputs["sustain"], outputs["spacing"], stars)
+                                          outputs["sustain"], outputs["spacing"], stars,
+                                          human_constraints=not args.no_crutches)
                 assign_combos(frame_plan, preset_rules, timing.beat_length)
                 plan, choices = placer.follow(frame_plan, args.drop_below, args.add_above,
-                                              critic=critic, candidates=args.candidates)
+                                              critic=critic, candidates=args.candidates,
+                                              passes=args.passes)
             else:
                 plan, choices = placer.sample()
             if len(plan) < 10:

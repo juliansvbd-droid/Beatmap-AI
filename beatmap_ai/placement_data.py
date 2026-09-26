@@ -17,19 +17,24 @@ import numpy as np
 
 from .audio import FPS
 from .osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH, Beatmap, HitObject
+from .slider_paths import PATH_POINTS, sample_slider_path
 
 # Columns of the per-object array (see map_objects).
 T, END, X, Y, EX, EY, KIND, SLIDES, NC, LEN, BEAT, VEL, PHASE, BAR = range(14)
 OU, OV, OMASK, CU, CV, CMASK, BEND, BMASK, HCOS, HSIN = range(14, 24)
 WHISTLE, FINISH, CLAP = range(24, 27)
-N_COLUMNS = 27
+PATH_START = 27
+PATH_END = PATH_START + 2 * PATH_POINTS
+KIAI = PATH_END
+N_COLUMNS = KIAI + 1
 HITSOUND_BITS = {WHISTLE: 2, FINISH: 4, CLAP: 8}
 SECTION_SECONDS = 4.0  # half-width of the window for section intensity
 CIRCLE, SLIDER, SPINNER = 0, 1, 2
 MIN_MOVE = 5.0  # px; shorter movements (stacks) keep the previous direction
 OFFSET_SCALE = 100.0  # offsets are predicted in units of 100 px
 CONDITIONS = ("density", "stars", "jump", "stream", "sliders")
-PLACEMENT_CACHE = "placement.pkl"
+# Keep the old cache intact: v3 adds 16 per-object slider path targets.
+PLACEMENT_CACHE = "placement-v3.pkl"
 
 
 def rotate(vx: float, vy: float, angle: float) -> tuple[float, float]:
@@ -71,6 +76,9 @@ def augment_objects(objects: np.ndarray, flip_x: bool, flip_y: bool) -> np.ndarr
     if flip_x ^ flip_y:
         o[:, OV] = -o[:, OV]
         o[:, CV] = -o[:, CV]
+        # The slider trace is expressed in the local heading frame. A single-axis
+        # reflection reverses that frame's handedness, so its lateral coordinate flips.
+        o[:, PATH_START + 1:PATH_END:2] *= -1.0
         mask = o[:, BMASK] > 0
         o[mask, BEND] = 1.0 - o[mask, BEND]
     return o
@@ -81,6 +89,17 @@ def map_objects(bm: Beatmap) -> np.ndarray:
     objs = bm.hit_objects
     out = np.zeros((len(objs), N_COLUMNS), dtype=np.float32)
     first = next(tp for tp in bm.timing_points if tp.uninherited)
+    kiai_spans = []
+    active_start = None
+    for point in sorted(bm.timing_points, key=lambda value: value.time):
+        active = bool(point.effects & 1)
+        if active and active_start is None:
+            active_start = point.time
+        elif not active and active_start is not None:
+            kiai_spans.append((active_start, point.time))
+            active_start = None
+    if active_start is not None:
+        kiai_spans.append((active_start, float("inf")))
     heading = 0.0
     prev_end = None
     for i, o in enumerate(objs):
@@ -99,6 +118,7 @@ def map_objects(bm: Beatmap) -> np.ndarray:
         beats = (o.time - red.time) / beat_length
         row = out[i]
         row[[T, END, X, Y, EX, EY]] = o.time, end, o.x, o.y, ex, ey
+        row[KIAI] = float(any(start <= o.time < stop for start, stop in kiai_spans))
         row[KIND], row[SLIDES], row[NC] = kind, o.slides, float(o.new_combo)
         row[LEN], row[BEAT] = o.length, beat_length
         row[VEL] = bm.slider_multiplier * 100.0 * sv
@@ -118,6 +138,7 @@ def map_objects(bm: Beatmap) -> np.ndarray:
             fx, fy = slider_far_point(o)
             cu, cv = rotate(fx - o.x, fy - o.y, -heading)
             row[CU], row[CV], row[CMASK] = cu / o.length, cv / o.length, 1.0
+            row[PATH_START:PATH_END] = sample_slider_path(o, heading).reshape(-1)
             side = slider_side(o)
             if side is not None and math.hypot(cu, cv) < 0.97 * o.length:
                 # Side relative to the frame: mirrored frames flip it.

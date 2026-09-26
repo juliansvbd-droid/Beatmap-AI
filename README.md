@@ -108,9 +108,19 @@ beatmap-ai generate song.mp3 --model beatmap_model.pt
 
 # Star ratings and a style
 beatmap-ai generate song.mp3 -d 3.8 -d 5.2 --style jump=0.7
+
+# The app defaults stay on sequence v2 and one pass. Opt in to an experiment explicitly:
+beatmap-ai generate song.mp3 --sequence D:/BeatMap-AI-Dataset/night/2026-09-26/sequence-v3.pt \
+  --planner D:/BeatMap-AI-Dataset/night/2026-09-26/planner.best.pt \
+  --songfit D:/BeatMap-AI-Dataset/night/2026-09-26/songfit.pt --passes 2
 ```
 
 If the file name looks like `Artist - Title.mp3`, the metadata is filled in from it.
+
+Experimental checkpoints are never activated automatically. The GUI keeps sequence v2
+selected unless the **Sequence v3 verwenden** option is enabled and a checkpoint is
+chosen. The default refinement count is one pass; higher values run more candidate
+refinements per section. Planner and song-fit checkpoints are also opt-in.
 
 ## Training the AI on real beatmaps
 

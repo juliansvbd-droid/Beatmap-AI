@@ -139,6 +139,9 @@ def generate_beatmap(
     variety: float = RHYTHM_VARIETY,
     critic=None,
     candidates: int = 4,
+    passes: int = 1,
+    section_profile=None,
+    crutches: bool = True,
 ) -> Beatmap:
     """One difficulty. ``difficulty`` is a preset name ("hard") or a star rating (4.5);
     for a star rating the map is adjusted until osu!'s star calculation agrees (needs
@@ -163,7 +166,7 @@ def generate_beatmap(
             else [(timing.offset_ms, timing.beat_length)])
     grid = [(time, beat_length, 4) for time, beat_length in grid]
 
-    sequence = placement is not None and type(placement).__name__ == "SequenceNet"
+    sequence = placement is not None and type(placement).__name__ in {"SequenceNet", "SequenceV3Net"}
     notes_for: dict[int, tuple] = {}  # id(plan) -> (plan, the frame model's note probabilities)
     # Star rating asked of the models, relative to the target (see the sequence branch of
     # the star targeting below): "make it harder" instead of "space it further apart".
@@ -185,7 +188,8 @@ def generate_beatmap(
         mode = "density" if force_density and outputs else selection
         plan = plan_objects(features, timing, wanted, rng, outputs.get("note"), outputs.get("slider"),
                             note_threshold, mode, outputs.get("sustain"), outputs.get("spacing"),
-                            stars, variety if mode == selection else 0.0)
+                            stars, variety if mode == selection else 0.0,
+                            human_constraints=crutches)
         if repeats and not sequence:
             plan = copy_rhythm(plan, repeats, timing.beat_length / preset.divisor,
                                4 * timing.beat_length)
@@ -232,10 +236,11 @@ def generate_beatmap(
         conditions = dict(placement_conditions, stars=wanted_stars * steer["k"])
         placer = SequencePlacer(placement, preset, features, timing, conditions,
                                 style_tags(style), scores, quarter, threshold,
-                                np.random.default_rng(seed + 1000), sv_at=sv_at)
+                                np.random.default_rng(seed + 1000), sv_at=sv_at,
+                                section_profile=section_profile, crutches=crutches)
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
                                           critic=critic if ranked else None,
-                                          candidates=candidates)
+                                          candidates=candidates, passes=passes)
         sampled[key] = (plan, followed, choices, placer)
         return sampled[key]
 
@@ -495,6 +500,10 @@ def generate(
     variety: float = RHYTHM_VARIETY,
     critic_path: str | Path | None = "auto",
     candidates: int = 4,
+    passes: int = 1,
+    songfit_path: str | Path | None = None,
+    planner_path: str | Path | None = None,
+    crutches: bool = True,
     log=print,
 ) -> Path:
     """Write an .osz with one beatmap per difficulty (a preset name or a star rating).
@@ -513,6 +522,25 @@ def generate(
         log(f"warning: osu!stable only plays .mp3/.ogg audio, got {audio_path.suffix}")
 
     features, timing = analyze(audio_path, bpm, offset)
+    planner = None
+    advice = None
+    if planner_path is not None:
+        from .planner import load_planner, plan_song
+        planner = load_planner(planner_path, device=inference_device())
+        advice = plan_song(planner, features.mel, timing.beat_length, 4.5)
+        if style is None:
+            suggested = {
+                "jump": max(advice["styles"].get("skillset/jumps", 0.0),
+                            advice["styles"].get("jumps/wide", 0.0)),
+                "stream": advice["styles"].get("skillset/streams", 0.0),
+                "tech": advice["styles"].get("skillset/tech", 0.0),
+                "flow": advice["styles"].get("streams/flow aim", 0.0),
+            }
+            style = {name: min(0.4, float(value) * 0.4)
+                     for name, value in sorted(suggested.items(), key=lambda item: -item[1])[:2]
+                     if value >= 0.35}
+            style = style or None
+        log(f"pre-planner: recommended maximum {advice['max_stars']:.1f}★")
     timing_notes = []
     if timing.swing_confidence >= 0.25 and timing.swing_ratio > 0.515:
         timing_notes.append(f"swing {timing.swing_ratio:.0%}")
@@ -551,12 +579,19 @@ def generate(
     if critic_path == "auto":
         critic_path = bundled_critic()
     critic = None
-    if critic_path is not None and placement is not None and type(placement).__name__ == "SequenceNet":
+    if (critic_path is not None and placement is not None
+            and type(placement).__name__ in {"SequenceNet", "SequenceV3Net"}):
         from .critic import load_critic
         critic = load_critic(critic_path, device=inference_device())
         log(f"critic: model {Path(critic_path).name} (Best-of-{candidates})")
     elif critic_path is not None:
         log("critic: off (requires sequence model)")
+
+    if songfit_path is not None and placement is not None:
+        from .songfit import SongFitScorer, load_songfit
+        songfit = load_songfit(songfit_path, device=inference_device())
+        critic = SongFitScorer(critic=critic, songfit=songfit)
+        log(f"song-fit: model {Path(songfit_path).name}; up to {passes} passes")
 
     repeats = []
     if repeat_sections and features.chroma is not None and not (
@@ -567,11 +602,20 @@ def generate(
                 f"{r.target_ms / 1000:.0f}s like {r.source_ms / 1000:.0f}s" for r in repeats))
     beatmaps = []
     for i, name in enumerate(difficulties):
+        section_profile = None
+        if planner is not None:
+            from .planner import plan_song
+            target_stars = (float(DEFAULT_STARS.get(str(name).lower(), 4.5))
+                            if isinstance(name, str) else float(name))
+            advice = plan_song(planner, features.mel, timing.beat_length, target_stars)
+            section_profile = advice["sections"]
+            log(f"  pre-planner for {target_stars:g}★: {len(section_profile)} sections")
         bm = generate_beatmap(
             features, timing, name, seed=seed + i, model=model, threshold=threshold,
             title=title, artist=artist, audio_filename="audio" + audio_path.suffix.lower(),
             style=style, log=log, placement=placement, repeats=repeats, variety=variety,
             critic=critic, candidates=candidates,
+            passes=passes, section_profile=section_profile, crutches=crutches,
         )
         kinds = [o.kind for o in bm.hit_objects]
         log(f"  [{bm.version}] {len(kinds)} objects: {kinds.count('circle')} circles, "

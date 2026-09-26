@@ -107,6 +107,8 @@ class BeatmapApp(tk.Tk):
         self.last_checkpoint: Path | None = None
         self.last_learning_report: Path | None = None
         self.detected_backend = "cpu"
+        self._planner_pending = False
+        self._recommended_stars: list[float] = []
 
         self._configure_styles()
         self._build_layout()
@@ -118,6 +120,8 @@ class BeatmapApp(tk.Tk):
         self._load_recent_learning_report()
         self.after(100, self._poll_events)
         threading.Thread(target=self._refresh_hardware_status, daemon=True).start()
+        if initial_audio:
+            self.after(250, self._request_planner_advice)
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)
@@ -286,12 +290,19 @@ class BeatmapApp(tk.Tk):
             "expert": tk.BooleanVar(value=False),
         }
         self.stars_var = tk.StringVar()
+        self.planner_advice_var = tk.StringVar(value="Noch kein Vorplanungsmodell verfügbar.")
         self.style_var = tk.StringVar(value=STYLE_CHOICES[0][0])
         self.style_strength_var = tk.DoubleVar(value=70)
         self.style_strength_label = tk.StringVar(value="70 %")
         self.variety_var = tk.DoubleVar(value=50)
         self.variety_label = tk.StringVar(value="50 %")
         self.critic_var = tk.StringVar(value=CRITIC_CHOICES[0][0])
+        self.passes_var = tk.IntVar(value=1)
+        self.planner_var = tk.BooleanVar(value=False)
+        self.sequence_v3_var = tk.BooleanVar(value=False)
+        self.sequence_v3_path_var = tk.StringVar()
+        self.sequence_model_info_var = tk.StringVar(
+            value="Standard: Sequence v2. Ein v3-Checkpoint wird nur bei ausdrücklicher Auswahl verwendet.")
 
         card = self._card(self.generate_page, "1. Song auswählen",
                           "Unterstützt MP3 und OGG. Der Künstler und Titel können aus „Künstler - Titel.mp3“ übernommen werden.")
@@ -308,6 +319,18 @@ class BeatmapApp(tk.Tk):
         stars_row = ttk.Frame(card, style="Card.TFrame")
         stars_row.pack(fill="x", pady=(8, 0))
         self._labeled_entry(stars_row, "Sternzahlen (optional, z. B. 3.8; 4.5; 6)", self.stars_var, 0, 0, width=30)
+        recommendation = ttk.Frame(card, style="Card.TFrame")
+        recommendation.pack(fill="x", pady=(7, 0))
+        ttk.Label(recommendation, textvariable=self.planner_advice_var,
+                  style="CardMuted.TLabel").pack(side="left", fill="x", expand=True)
+        self.planner_preview_button = ttk.Button(
+            recommendation, text="Vorplanung anzeigen", style="Secondary.TButton",
+            command=self._request_planner_advice)
+        self.planner_preview_button.pack(side="left", padx=(8, 0))
+        self.planner_fill_button = ttk.Button(
+            recommendation, text="Empfohlene Sterne übernehmen", style="Secondary.TButton",
+            command=self._apply_recommended_stars, state="disabled")
+        self.planner_fill_button.pack(side="left", padx=(8, 0))
         tk.Label(card, text="Jede Sternzahl wird eine eigene Difficulty. BeatMap AI rechnet mit der "
                             "osu!-Sternformel nach und passt die Map an, bis sie stimmt.",
                  bg=SURFACE, fg=MUTED, font=("Segoe UI", 9), wraplength=720, justify="left").pack(anchor="w", pady=(4, 0))
@@ -343,6 +366,23 @@ class BeatmapApp(tk.Tk):
                  bg=SURFACE, fg=MUTED, font=("Segoe UI", 9)).pack(side="left")
         ttk.Combobox(critic_row, textvariable=self.critic_var, state="readonly", width=22,
                      values=[label for label, _ in CRITIC_CHOICES]).pack(side="left", padx=(8, 0))
+        pass_row = ttk.Frame(card, style="Card.TFrame")
+        pass_row.pack(fill="x", pady=(8, 0))
+        tk.Label(pass_row, text="Durchgänge pro Abschnitt", bg=SURFACE, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(side="left")
+        tk.Spinbox(pass_row, from_=1, to=4, width=4, textvariable=self.passes_var,
+                   justify="center").pack(side="left", padx=(8, 12))
+        ttk.Checkbutton(pass_row, text="Vorplanung nutzen (experimentell)",
+                        variable=self.planner_var).pack(side="left")
+        v3_row = ttk.Frame(card, style="Card.TFrame")
+        v3_row.pack(fill="x", pady=(8, 0))
+        ttk.Checkbutton(v3_row, text="Sequence v3 verwenden (experimentell)",
+                        variable=self.sequence_v3_var,
+                        command=self._update_sequence_v3_state).pack(side="left")
+        ttk.Entry(v3_row, textvariable=self.sequence_v3_path_var, width=54).pack(
+            side="left", fill="x", expand=True, padx=(8, 6))
+        ttk.Button(v3_row, text="Checkpoint wählen…", style="Secondary.TButton",
+                   command=self._choose_sequence_v3).pack(side="left")
 
         card = self._card(self.generate_page, "3. Ausgabe und Extras",
                           "Leere Metadatenfelder werden automatisch aus dem Dateinamen ausgefüllt.")
@@ -352,7 +392,7 @@ class BeatmapApp(tk.Tk):
         self._labeled_entry(metadata, "Songtitel (optional)", self.title_var, 0, 1)
         ttk.Checkbutton(card, text="KI verwenden (empfohlen: Sequence v2 + Conformer v4)",
                         variable=self.use_model_var).pack(anchor="w", pady=(0, 2))
-        tk.Label(card, text="Aktiv: Sequence v2 (Rhythmus + Platzierung) mit GPU-Beschleunigung",
+        tk.Label(card, textvariable=self.sequence_model_info_var,
                  bg=SURFACE, fg=GREEN, font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 8))
 
         tk.Label(card, text="Beatmap-Datei (.osz)", bg=SURFACE, fg=MUTED,
@@ -695,6 +735,101 @@ class BeatmapApp(tk.Tk):
             self.output_map_var.set(str(output_dir / f"{Path(path).stem}.osz"))
             self.open_osu_button.configure(state="disabled")
             self.open_map_folder_button.configure(state="disabled")
+            self._recommended_stars = []
+            self.planner_fill_button.configure(state="disabled")
+            self.planner_advice_var.set("Vorplanung wird vorbereitet …")
+            self.after(100, self._request_planner_advice)
+
+    def _choose_sequence_v3(self) -> None:
+        initial = self.sequence_v3_path_var.get().strip()
+        if not initial:
+            candidates = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/sequence-v3.pt"))
+            if candidates:
+                initial = str(max(candidates, key=lambda path: path.stat().st_mtime))
+        path = filedialog.askopenfilename(
+            title="Sequence-v3-Checkpoint auswählen",
+            initialdir=str(Path(initial).parent) if initial else "D:/BeatMap-AI-Dataset/night",
+            initialfile=Path(initial).name if initial else "",
+            filetypes=(("PyTorch-Checkpoint", "*.pt"), ("Alle Dateien", "*.*")))
+        if path:
+            self.sequence_v3_path_var.set(path)
+            self.sequence_v3_var.set(True)
+            self._update_sequence_v3_state()
+
+    def _update_sequence_v3_state(self) -> None:
+        if self.sequence_v3_var.get():
+            self.sequence_model_info_var.set("Experimentell: ausgewählter Sequence-v3-Checkpoint; v2 bleibt unverändert.")
+        else:
+            self.sequence_model_info_var.set(
+                "Standard: Sequence v2. Ein v3-Checkpoint wird nur bei ausdrücklicher Auswahl verwendet.")
+
+    @staticmethod
+    def _latest_planner_checkpoint() -> Path | None:
+        paths = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/planner.best.pt"))
+        return max(paths, key=lambda path: path.stat().st_mtime) if paths else None
+
+    def _request_planner_advice(self) -> None:
+        if self._planner_pending or self.active_task:
+            return
+        audio = Path(self.audio_var.get()).expanduser() if self.audio_var.get() else None
+        checkpoint = self._latest_planner_checkpoint()
+        if audio is None or not audio.is_file():
+            self.planner_advice_var.set("Wähle zuerst einen Song für eine Empfehlung aus.")
+            return
+        if checkpoint is None:
+            self.planner_advice_var.set("Noch kein Vorplanungsmodell verfügbar.")
+            return
+        self._planner_pending = True
+        self.planner_preview_button.configure(state="disabled")
+        self.planner_advice_var.set("Song wird analysiert …")
+
+        def calculate() -> None:
+            try:
+                from .generator import analyze
+                from .planner import load_planner, plan_song
+
+                features, timing = analyze(audio)
+                model = load_planner(checkpoint, device="cpu")
+                advice = plan_song(model, features.mel, timing.beat_length, 4.5)
+                limit = float(advice["max_stars"])
+                distribution = advice["star_distribution"].tolist()
+                levels = [0.5 * (index + 1) for index in range(len(distribution))]
+                suggestions = []
+                for quantile in (0.30, 0.65, 0.90):
+                    total, chosen = sum(max(float(v), 0.0) for v in distribution), levels[-1]
+                    target = quantile * total
+                    cumulative = 0.0
+                    for level, probability in zip(levels, distribution):
+                        cumulative += max(float(probability), 0.0)
+                        if cumulative >= target:
+                            chosen = level
+                            break
+                    chosen = max(0.5, min(limit, chosen))
+                    chosen = round(chosen * 2) / 2
+                    if not suggestions or chosen != suggestions[-1]:
+                        suggestions.append(chosen)
+                tag_names = {"skillset/jumps": "Jump", "skillset/streams": "Stream",
+                             "skillset/tech": "Tech", "streams/flow aim": "Flow",
+                             "expression/simple": "Simple", "jumps/wide": "Jump"}
+                ranked = sorted(advice["styles"].items(), key=lambda item: -float(item[1]))
+                labels = []
+                for name, value in ranked:
+                    label = tag_names.get(name)
+                    if label and float(value) >= 0.3 and label not in labels:
+                        labels.append(label)
+                    if len(labels) == 3:
+                        break
+                style_text = ", ".join(labels) if labels else "Auto"
+                summary = f"Empfohlen: bis ~{limit:.1f}★ · Stil: {style_text}"
+                self.events.put(("planner_advice", (summary, suggestions, None)))
+            except Exception as exc:
+                self.events.put(("planner_advice", ("Vorplanung konnte nicht berechnet werden.", [], str(exc))))
+
+        threading.Thread(target=calculate, daemon=True).start()
+
+    def _apply_recommended_stars(self) -> None:
+        if self._recommended_stars:
+            self.stars_var.set("; ".join(f"{value:g}" for value in self._recommended_stars))
 
     def _choose_map_output(self) -> None:
         initial = self.output_map_var.get() or str(PROJECT_ROOT / "Beatmap.osz")
@@ -729,6 +864,9 @@ class BeatmapApp(tk.Tk):
 
     def _start_generate(self) -> None:
         if self.active_task:
+            return
+        if self._planner_pending:
+            messagebox.showinfo("Vorplanung läuft", "Warte kurz, bis die Songempfehlung fertig ist.", parent=self)
             return
         audio = Path(self.audio_var.get()).expanduser()
         if not audio.is_file():
@@ -766,8 +904,38 @@ class BeatmapApp(tk.Tk):
         for difficulty in difficulties:
             args.extend(("-d", difficulty))
         if not self.use_model_var.get():
+            if self.sequence_v3_var.get():
+                messagebox.showinfo("Sequence v3", "Aktiviere zuerst ‚KI verwenden‘, um Sequence v3 zu nutzen.", parent=self)
+                return
             args.extend(("--no-model", "--rule-placement"))
+        elif self.sequence_v3_var.get():
+            checkpoint_text = self.sequence_v3_path_var.get().strip()
+            checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text else None
+            if checkpoint is None or not checkpoint.is_file():
+                candidates = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/sequence-v3.pt"))
+                checkpoint = max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+            if checkpoint is None or not checkpoint.is_file():
+                messagebox.showinfo("Sequence v3", "Bitte wähle zuerst einen v3-Checkpoint aus.", parent=self)
+                return
+            self.sequence_v3_path_var.set(str(checkpoint))
+            args.extend(("--sequence", str(checkpoint)))
         args.extend(("--variety", f"{self.variety_var.get() / 100:.2f}"))
+        try:
+            passes = int(self.passes_var.get())
+        except (ValueError, tk.TclError):
+            messagebox.showerror("Durchgänge prüfen", "Bitte wähle 1 bis 4 Durchgänge.", parent=self)
+            return
+        if not 1 <= passes <= 4:
+            messagebox.showerror("Durchgänge prüfen", "Bitte wähle 1 bis 4 Durchgänge.", parent=self)
+            return
+        args.extend(("--passes", str(passes)))
+        if self.planner_var.get():
+            planner_paths = sorted(Path("D:/BeatMap-AI-Dataset/night").glob("*/planner.best.pt"),
+                                   key=lambda p: p.stat().st_mtime, reverse=True)
+            if not planner_paths:
+                messagebox.showinfo("Vorplanung", "Es wurde noch kein Vorplanungsmodell gefunden.", parent=self)
+                return
+            args.extend(("--planner", str(planner_paths[0])))
         critic = dict(CRITIC_CHOICES)[self.critic_var.get()]
         if critic is None:
             args.append("--no-critic")
@@ -949,6 +1117,15 @@ class BeatmapApp(tk.Tk):
                     self.detected_backend, description = payload  # type: ignore[misc]
                     self.hardware_var.set(description)
                     self._on_training_mode_change()
+                elif kind == "planner_advice":
+                    summary, stars, error = payload  # type: ignore[misc]
+                    self._planner_pending = False
+                    self._recommended_stars = list(stars)
+                    self.planner_advice_var.set(str(summary))
+                    self.planner_preview_button.configure(state="normal")
+                    self.planner_fill_button.configure(state="normal" if stars else "disabled")
+                    if error:
+                        self._append_log(f"Vorplanung: {error}")
                 elif kind == "finished":
                     task, code = payload  # type: ignore[misc]
                     self._finish_job(str(task), int(code))

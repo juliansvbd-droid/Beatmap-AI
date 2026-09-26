@@ -1,10 +1,15 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-26 17:52, von Codex._
+_Zuletzt aktualisiert: 2026-09-26 21:58, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- Keine laufenden BeatMap-AI-Mess- oder Trainingsjobs. Prompt sol-01 ist am 26.09.2026
+- Keine laufenden BeatMap-AI-Mess- oder Trainingsjobs; Prompt 05 ist implementiert und
+  vollständig vorgeprüft. `pytest -q`: 50 bestanden. ROCm-Schrittzeit Planner: 128 =
+  0,0106 s (0,59 Mio. Parameter), 256 = 0,0135 s (2,30 Mio.). Tagger-, Planner-,
+  Song-Passung- und v3-Smokes bestanden. Windows Update ist bis 2026-09-27 19:50 UTC
+  pausiert. Der freistehende Nachtlauf startet nach dem geprüften Commit.
+- Prompt sol-01 ist am 26.09.2026
   abgeschlossen: 2.000 menschliche Validierungs-Maps und 2.997 gültige Maps aus 3.000
   Manifestzeilen; 286 passende Validierungspaare wurden verbunden. Bericht:
   `D:\BeatMap-AI-Dataset\pattern_stats_2026-09-26.log`; menschliche Referenz:

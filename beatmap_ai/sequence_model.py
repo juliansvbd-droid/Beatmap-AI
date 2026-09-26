@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import copy
 import math
+import time
 from functools import partial
 from pathlib import Path
 
@@ -36,10 +37,11 @@ from torch import nn
 from .osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH, HitObject
 from .placement_data import (BAR, BEAT, BEND, BMASK, CIRCLE, CLAP, CMASK, CU, CV, END, FINISH,
                              HITSOUND_BITS, KIND, LEN, N_COLUMNS, NC, OFFSET_SCALE, OMASK, OU, OV,
-                             PHASE, SLIDER, SLIDES, T, VEL, WHISTLE, X)
+                             PATH_END, PATH_START, PHASE, SLIDER, SLIDES, T, VEL, WHISTLE, X)
 from .placement_model import CausalBlock, mixture_nll
 from .sequence_data import (DURATION_CLASSES, FEATURES, GAP_CLASSES, REPEAT_CLASSES,  # noqa: F401
-                            SequenceSampler, batch_stream, build_sequence_maps, share_maps)
+                            SECTION_CONTROLS, V3_FEATURES, SequenceSampler, batch_stream,
+                            build_sequence_maps, share_maps)
 
 
 # Slider chord / length (1 = straight) of ranked maps: quantiles at CHORD_LEVELS per whole
@@ -85,11 +87,11 @@ def human_chord(chord: tuple[float, float], stars: float, length: float,
 class SequenceNet(nn.Module):
     def __init__(self, features: int = FEATURES, hidden: int = 320, layers: int = 8,
                  heads: int = 8, context: int = 128, offset_mixtures: int = 16,
-                 chord_mixtures: int = 8):
+                 chord_mixtures: int = 8, form_points: int = 0):
         super().__init__()
         self.config = dict(features=features, hidden=hidden, layers=layers, heads=heads,
                            context=context, offset_mixtures=offset_mixtures,
-                           chord_mixtures=chord_mixtures)
+                           chord_mixtures=chord_mixtures, form_points=form_points)
         self.inp = nn.Sequential(nn.Linear(features, hidden), nn.GELU(), nn.Linear(hidden, hidden))
         self.pos = nn.Parameter(torch.zeros(context, hidden))
         self.blocks = nn.ModuleList(CausalBlock(hidden, heads) for _ in range(layers))
@@ -103,6 +105,7 @@ class SequenceNet(nn.Module):
         self.duration_head = nn.Linear(hidden, DURATION_CLASSES)
         self.repeat_head = nn.Linear(hidden, REPEAT_CLASSES)
         self.combo_head = nn.Linear(hidden, 1)
+        self.form_head = nn.Linear(hidden, form_points) if form_points else None
         mask = torch.triu(torch.full((context, context), float("-inf")), diagonal=1)
         self.register_buffer("mask", mask, persistent=False)
 
@@ -112,11 +115,14 @@ class SequenceNet(nn.Module):
         for block in self.blocks:
             h = block(h, self.mask)
         h = self.norm(h)
-        return {"offset": self.offset_head(h), "chord": self.chord_head(h),
+        out = {"offset": self.offset_head(h), "chord": self.chord_head(h),
                 "bend": self.bend_head(h)[..., 0], "hitsound": self.hitsound_head(h),
                 "gap": self.gap_head(h), "kind": self.kind_head(h),
                 "duration": self.duration_head(h), "repeat": self.repeat_head(h),
                 "combo": self.combo_head(h)[..., 0]}
+        if self.form_head is not None:
+            out["form"] = self.form_head(h)
+        return out
 
     def step(self, x: torch.Tensor, pos: int,
              kv_cache: list[tuple[torch.Tensor, torch.Tensor]] | None = None
@@ -136,8 +142,21 @@ class SequenceNet(nn.Module):
                "bend": self.bend_head(h)[..., 0], "hitsound": self.hitsound_head(h),
                "gap": self.gap_head(h), "kind": self.kind_head(h),
                "duration": self.duration_head(h), "repeat": self.repeat_head(h),
-               "combo": self.combo_head(h)[..., 0]}
+                "combo": self.combo_head(h)[..., 0]}
+        if self.form_head is not None:
+            out["form"] = self.form_head(h)
         return out, new_cache
+
+
+class SequenceV3Net(SequenceNet):
+    """Sequence model with a learned eight-point slider path head."""
+
+    def __init__(self, features: int = V3_FEATURES, hidden: int = 512, layers: int = 8,
+                 heads: int = 8, context: int = 256, offset_mixtures: int = 16,
+                 chord_mixtures: int = 8, form_points: int = 16):
+        from .slider_paths import PATH_POINTS
+        super().__init__(features, hidden, layers, heads, context, offset_mixtures,
+                         chord_mixtures, form_points=form_points or PATH_POINTS * 2)
 
 
 def sequence_losses(model: SequenceNet, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, dict]:
@@ -171,26 +190,36 @@ def sequence_losses(model: SequenceNet, batch: dict[str, torch.Tensor]) -> tuple
     total = (offset + 0.5 * chord + 0.2 * bend + 0.3 * hitsound
              + gap + 0.5 * kind + 0.5 * duration + 0.2 * repeat + 0.3 * combo)
     parts = {"offset": offset, "gap": gap, "kind": kind, "duration": duration, "combo": combo}
+    if "form" in out:
+        target = y[..., PATH_START:PATH_END]
+        form_mask = cm * rm
+        form = masked(F.smooth_l1_loss(out["form"], target, reduction="none").mean(-1), form_mask)
+        total = total + 0.5 * form
+        parts["form"] = form
     return total, {k: v.item() for k, v in parts.items()}
 
 
-def save_sequence(model: SequenceNet, path) -> None:
+def save_sequence(model: SequenceNet, path, metrics=None) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     state = {k: v.detach().cpu() for k, v in model.state_dict().items()}
-    torch.save({"config": model.config, "kind": "sequence", "state_dict": state}, path)
+    kind = "sequence-v3" if getattr(model, "form_head", None) is not None else "sequence"
+    torch.save({"config": model.config, "kind": kind, "state_dict": state,
+                "metrics": metrics or {}}, path)
 
 
 def load_sequence(path, device="cpu") -> SequenceNet:
     ckpt = torch.load(path, map_location="cpu", weights_only=True)
-    model = SequenceNet(**ckpt["config"])
+    model_type = SequenceV3Net if ckpt.get("kind") == "sequence-v3" else SequenceNet
+    model = model_type(**ckpt["config"])
     model.load_state_dict(ckpt["state_dict"])
     return model.to(device).eval()
 
 
 def is_sequence_checkpoint(path) -> bool:
     try:
-        return torch.load(path, map_location="cpu", weights_only=True).get("kind") == "sequence"
+        return torch.load(path, map_location="cpu", weights_only=True).get("kind") in {
+            "sequence", "sequence-v3"}
     except Exception:
         return False
 
@@ -259,6 +288,98 @@ def train_sequence(data_dirs, out_path, tag_files=(), epochs: int = 30, steps_pe
     return out_path
 
 
+def train_sequence_v3(data_dirs, out_path, tag_files=(), epochs: int = 60,
+                      steps_per_epoch: int = 1000, batch_size: int = 8, lr: float = 2e-4,
+                      hidden: int = 512, layers: int = 8, context: int = 256,
+                      device: str | None = None, seed: int = 0, workers: int = 2,
+                      resume: bool = True, tagger_path=None,
+                      deadline=None,
+                      log=partial(print, flush=True)) -> Path:
+    """Train v3 and keep a resumable last state after every epoch.
+
+    The v2 model definition and its bundled weights remain loadable. ``out_path`` is
+    an experiment checkpoint path and is never copied into the application model folder.
+    """
+    from .dataset import is_validation
+    from .train import resolve_device
+    device = resolve_device(device)
+    torch.manual_seed(seed)
+    maps = build_sequence_maps(data_dirs, tag_files, log=log, tagger_path=tagger_path)
+    train_maps = [m for m in maps if not is_validation(m.song)]
+    val_maps = [m for m in maps if is_validation(m.song)]
+    if not train_maps or not val_maps:
+        raise ValueError("v3 needs both train and held-out validation maps")
+    context = max(32, int(context))
+    sampler = SequenceSampler(val_maps, context, seed + 1, hide=False, v3=True)
+    val_batches = [{k: torch.from_numpy(v) for k, v in sampler.batch(batch_size).items()}
+                   for _ in range(6)]
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    shared = share_maps(train_maps, out_path.with_suffix(".objects.npy"))
+    del maps, train_maps, val_maps, sampler
+    loader = batch_stream(shared, context, batch_size, seed, workers=workers, v3=True)
+    model = SequenceV3Net(features=V3_FEATURES, hidden=hidden, layers=layers, context=context).to(device)
+    params = sum(p.numel() for p in model.parameters())
+    log(f"sequence v3: {params / 1e6:.2f}M parameters on {device}; context={context}")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    total_steps = max(epochs * steps_per_epoch, 1)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=lr * 0.05)
+    last_path = out_path.with_name(out_path.stem + ".last.pt")
+    start_epoch, best = 0, float("inf")
+    if resume and last_path.exists():
+        try:
+            state = torch.load(last_path, map_location="cpu", weights_only=False)
+            model.load_state_dict(state["model"])
+            optimizer.load_state_dict(state["optimizer"])
+            scheduler.load_state_dict(state["scheduler"])
+            start_epoch, best = int(state["epoch"]), float(state["best"])
+            log(f"resuming v3 from epoch {start_epoch}, best validation {best:.4f}")
+        except (OSError, RuntimeError, KeyError, ValueError) as exc:
+            log(f"resume checkpoint ignored ({type(exc).__name__}: {exc})")
+
+    def validate():
+        model.eval()
+        values = []
+        with torch.no_grad():
+            for raw in val_batches:
+                batch = {k: v.to(device) for k, v in raw.items()}
+                values.append(sequence_losses(model, batch)[0].item())
+        model.train()
+        return float(np.mean(values))
+
+    for epoch in range(start_epoch + 1, epochs + 1):
+        if deadline is not None and time.time() >= deadline:
+            log("v3 time budget reached at an epoch boundary")
+            break
+        model.train()
+        losses = []
+        for _ in range(steps_per_epoch):
+            raw = next(loader)
+            batch = {k: torch.from_numpy(v).to(device) for k, v in raw.items()}
+            batch["x"] = batch["x"].float()
+            loss, _ = sequence_losses(model, batch)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
+            losses.append(float(loss.detach().cpu()))
+        val = validate()
+        log(f"v3 epoch {epoch}/{epochs}: train={np.mean(losses):.4f}, val={val:.4f}")
+        if val < best:
+            best = val
+            save_sequence(model, out_path, {"val_loss": val})
+        tmp = last_path.with_suffix(last_path.suffix + ".tmp")
+        torch.save({"epoch": epoch, "best": best,
+                    "model": {k: v.detach().cpu() for k, v in model.state_dict().items()},
+                    "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict()}, tmp)
+        tmp.replace(last_path)
+    if not out_path.exists():
+        save_sequence(model, out_path)
+    log(f"v3 saved: best={best:.4f}; best={out_path}; resumable={last_path}")
+    return out_path
+
+
 # --------------------------------------------------------------------------------------
 # Generation
 
@@ -274,7 +395,8 @@ class SequencePlacer:
     def __init__(self, model: SequenceNet, preset, features, timing, conditions: dict,
                  tags: dict[str, float] | None, note_scores: np.ndarray, grid,
                  threshold: float, rng: np.random.Generator, temperature: float = 0.8,
-                 rhythm_temperature: float = 0.9, sv_at=None, guidance: float = 0.0):
+                 rhythm_temperature: float = 0.9, sv_at=None, guidance: float = 0.0,
+                 section_profile=None, crutches: bool = True):
         from .placement import circle_radius
         from .placement_data import section_energy
         from .sequence_data import CONDITIONS, TAGS
@@ -305,7 +427,8 @@ class SequencePlacer:
         # Cursor flow: mappers turn back sharply (> 120 degrees) on 8 % of the moves below 3
         # stars, 18 % at 3-4 and about half from 4.5; the model alone did so on 35-80 % of
         # easier maps. Keep only this share of its sharp turns (and draw again otherwise).
-        self.sharp_keep = float(np.interp(self.stars, [2.0, 3.0, 4.0, 5.0], [0.1, 0.25, 0.6, 1.0]))
+        self.sharp_keep = (float(np.interp(self.stars, [2.0, 3.0, 4.0, 5.0],
+                                           [0.1, 0.25, 0.6, 1.0])) if crutches else 1.0)
         # How much the frame model's note scores weigh in on the gap choice: the sequence
         # model knows figures (doubles, pauses), the frame model hears exactly where notes go.
         self.guidance = guidance
@@ -313,10 +436,32 @@ class SequencePlacer:
         self.margin = self.radius * 0.6
         self.device = next(model.parameters()).device
         self.sv_at = sv_at
+        self.section_profile = section_profile or []
+        self.use_crutches = crutches
 
     def in_bounds(self, x: float, y: float) -> bool:
         m = self.margin
         return m <= x <= PLAYFIELD_WIDTH - m and m <= y <= PLAYFIELD_HEIGHT - m
+
+    def _model_features(self, rows: np.ndarray) -> np.ndarray:
+        from .sequence_data import sequence_features
+        base = sequence_features(rows, self.features.mel, self.preset.cs, self.cond, self.energy)
+        if self.model.config["features"] <= FEATURES:
+            return base
+        controls = np.zeros((len(rows), SECTION_CONTROLS), dtype=np.float32)
+        for i, row in enumerate(rows):
+            time = float(row[T])
+            section = next((item for item in self.section_profile
+                            if float(item.get("start", -np.inf)) <= time < float(item.get("end", np.inf))), None)
+            if section is not None:
+                raw = section.get("controls")
+                if raw is None:
+                    keys = ("density", "jump", "stream", "sliders", "sharp_turns",
+                            "fast_sharp_turns", "cross_screen", "kiai")
+                    raw = [section.get(key, 0.0) for key in keys]
+                values = np.asarray(raw, dtype=np.float32).ravel()
+                controls[i, :min(len(values), SECTION_CONTROLS)] = values[:SECTION_CONTROLS]
+        return np.concatenate([base, controls], axis=1)
 
     def _row(self, item) -> np.ndarray:
         row = np.zeros(N_COLUMNS, dtype=np.float32)
@@ -353,7 +498,7 @@ class SequencePlacer:
     def sample(self, gap_bias: float = 0.0):
         """(plan, choices). ``gap_bias`` > 0 favours shorter gaps (more notes)."""
         from .placement_model import Choice, _Walker, sample_mixture, sample_mixture_guided
-        from .sequence_data import LONG_GAP, sequence_features
+        from .sequence_data import LONG_GAP
         context = self.model.config["context"]
         first = self._next_scored_tick(0)
         if first is None:
@@ -369,7 +514,7 @@ class SequencePlacer:
             item = plan[i]
             rows = np.vstack([rows, self._row(item)])
             lo = max(0, i - context + 1)
-            x = sequence_features(rows[lo:], self.features.mel, self.preset.cs, self.cond, self.energy)
+            x = self._model_features(rows[lo:])
             step_x = torch.from_numpy(x[-1:][None]).to(self.device)
             raw, kv_cache = self.model.step(step_x, i, kv_cache)
             out = {k: v[0, -1].float().cpu().numpy() for k, v in raw.items()}
@@ -388,11 +533,15 @@ class SequencePlacer:
             choice.hitsound = sum(bit for bit, p in zip(HITSOUND_BITS.values(), hit_p)
                                   if self.rng.random() < p)
             if item.kind == "slider":
-                chord = sample_mixture(out["chord"], self.rng, self.temperature)
-                choice.chord = human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                           float(rows[i, LEN]), self._bend_rng(item))
-                bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
-                choice.side = 1.0 if self.rng.random() < bend_p else -1.0
+                if "form" in out:
+                    choice.path = np.clip(out["form"], -1.5, 1.5).reshape(-1, 2)
+                else:
+                    chord = sample_mixture(out["chord"], self.rng, self.temperature)
+                    choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
+                                                float(rows[i, LEN]), self._bend_rng(item))
+                                    if self.use_crutches else (float(chord[0]), float(chord[1])))
+                    bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
+                    choice.side = 1.0 if self.rng.random() < bend_p else -1.0
             choices.append(choice)
             walker.place(rows, i, item, choice, 1.0)
 
@@ -444,7 +593,6 @@ class SequencePlacer:
 
     def _step_placement(self, item, out_plan, choices, rows, walker, scale, rng):
         from .placement_model import Choice, sample_mixture
-        from .sequence_data import sequence_features
         context = self.model.config["context"]
         i = len(out_plan)
         out_plan.append(item)
@@ -453,8 +601,7 @@ class SequencePlacer:
             rows[i] = row
         else:
             rows = np.vstack([rows, row])
-        x = sequence_features(rows[max(0, i - context + 1):i + 1], self.features.mel, self.preset.cs,
-                              self.cond, self.energy)
+        x = self._model_features(rows[max(0, i - context + 1):i + 1])
         raw = self.model(torch.from_numpy(x)[None].to(self.device))
         o_len = raw["offset"].shape[-1]
         h_len = raw["hitsound"].shape[-1]
@@ -478,6 +625,8 @@ class SequencePlacer:
             "bend": packed[i3],
             "gap": packed[i4:i4 + g_len],
         }
+        if "form" in raw:
+            out["form"] = raw["form"][0, -1].float().cpu().numpy()
 
         choice = fallback = None
         gap = (item.time - rows[i - 1, END]) / max(item.beat_length or 1.0, 1.0) if i else 8.0
@@ -497,11 +646,15 @@ class SequencePlacer:
         choice.hitsound = sum(bit for bit, p in zip(HITSOUND_BITS.values(), hit_p)
                               if rng.random() < p)
         if item.kind == "slider":
-            chord = sample_mixture(out["chord"], rng, self.temperature)
-            choice.chord = human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                       float(rows[i, LEN]), self._bend_rng(item))
-            bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
-            choice.side = 1.0 if rng.random() < bend_p else -1.0
+            if "form" in out:
+                choice.path = np.clip(out["form"], -1.5, 1.5).reshape(-1, 2)
+            else:
+                chord = sample_mixture(out["chord"], rng, self.temperature)
+                choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
+                                            float(rows[i, LEN]), self._bend_rng(item))
+                                if self.use_crutches else (float(chord[0]), float(chord[1])))
+                bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
+                choice.side = 1.0 if rng.random() < bend_p else -1.0
         choices.append(choice)
         walker.place(rows, i, item, choice, scale)
         return out, rows
@@ -527,7 +680,7 @@ class SequencePlacer:
     @torch.no_grad()
     def follow(self, plan, drop_below: float = 0.15, add_above: float = 0.6,
                strong: float = 0.8, scale: float = 1.0,
-               critic=None, candidates: int = 4, chunk_size: int = 24):
+               critic=None, candidates: int = 4, chunk_size: int = 24, passes: int = 1):
         """Place a given rhythm (from the frame model) object by object, and let the
         sequence model edit its quick figures. When ``critic`` is provided with
         ``candidates`` > 1, section by section (16-32 objects) ``candidates`` variants are
@@ -538,7 +691,7 @@ class SequencePlacer:
         rows = np.zeros((len(queue) * 2 + 64, N_COLUMNS), dtype=np.float32)
         walker = _Walker(self)
 
-        if critic is None or candidates <= 1:
+        if critic is None or (candidates <= 1 and passes <= 1):
             # Fast direct single-trajectory generation
             k = 0
             while k < len(queue):
@@ -554,12 +707,13 @@ class SequencePlacer:
         # Best-of-N chunk-by-chunk evaluation
         from .critic_data import CRITIC_WINDOW, critic_features
         chunk_size = max(16, min(chunk_size, 32))
+        candidate_total = max(1, int(candidates)) * max(1, int(passes))
         k = 0
         while k < len(queue):
             target_chunk = min(chunk_size, len(queue) - k)
             cand_results = []
 
-            for c in range(candidates):
+            for c in range(candidate_total):
                 cand_seed = int(self.rng.integers(0, 2**31 - 1))
                 cand_rng = np.random.default_rng(cand_seed)
 
@@ -610,7 +764,7 @@ class SequencePlacer:
             elif callable(critic):
                 scores = critic(batch_x, batch_mask)
             else:
-                scores = np.zeros(candidates)
+                scores = np.zeros(candidate_total)
 
             if isinstance(scores, torch.Tensor):
                 scores_arr = scores.detach().cpu().numpy().ravel()

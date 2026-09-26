@@ -3,6 +3,24 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-26 21:58 – Codex (Prompt 05: Umsetzung und Vorprüfung)
+- Prompts 03 → 04 → 02 als fortsetzbaren, nacheinander laufenden Nacht-Workflow vorbereitet:
+  `scripts/night_run.py`, `scripts/night_phase.py` und `night_run.bat`. Trainings- und
+  Messausgaben liegen auf D:. Der Supervisor begrenzt Phasen, hält den Rechner wach, startet
+  nach Fehlern die Folgephase und lässt v3 Vorrang vor Phase E/F; Checkpoints bleiben außerhalb
+  der App.
+- v3 ergänzt echte Slider-Pfade, Stil-/Stern-Balancierung und Abschnittswerte. Vorplanung nutzt
+  einen Transformer statt GRU. Phase E vergleicht 128/256 auf derselben Song-Validierung und
+  wählt nach Hauptteil-F1, Kiai-F1 sowie Stern- und Abschnittsfehlern; innerhalb 0,001 gewinnt
+  128. Defaults bleiben 1 Durchgang, v2, Planner/Songfit/v3 nur opt-in.
+- Vollständige Tests: `pytest -q` → 50 bestanden, 1 ROCm-Warnung, 87,47 s. Tagger-, Planner-,
+  Songfit- und v3-Smokes bestanden; Planner: 0,59 Mio. Parameter/0,0106 s pro Schritt (128),
+  2,30 Mio./0,0135 s (256). Phase-G-Bericht gegen 18 echte Vergleichs-Maps geprüft; die
+  Tabelle enthält nun die P95-Ausreißer und Musterabweichung je Sternstufe und Map.
+- Windows Update bis 2026-09-27 19:50 UTC pausiert. Der Nachtlauf ist vorbereitet, aber noch
+  nicht gestartet; direkt nach Commit/Push als verdeckter Supervisor fortsetzen. Kein Modell
+  wurde in die App übernommen.
+
 ## 2026-09-26 17:52 – Codex (Prompt sol-01: Muster-Messungen)
 - `beatmap_ai/patterns.py`: torch-freie Messungen für Rhythmusgruppen, geometrische Sprungfolgen,
   wiederholte Formen, Sliderlänge/-krümmung und schwierigkeitsspezifische P95-Ausreißer ergänzt.

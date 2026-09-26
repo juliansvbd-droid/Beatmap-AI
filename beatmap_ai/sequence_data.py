@@ -4,10 +4,11 @@ worker processes cheaply). See sequence_model.py for the model itself."""
 from __future__ import annotations
 
 import json
+import math
 import multiprocessing
 import os
 import re
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,8 +17,9 @@ import numpy as np
 from .audio import FPS
 from .osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH
 from .placement_data import (BAR, BEAT, CIRCLE, CLAP, CMASK, CU, CV, END, EX, EY, FINISH, HCOS,
-                             HSIN, KIND, N_COLUMNS, NC, OMASK, OU, OV, PHASE, SLIDES, T, VEL,
-                             WHISTLE, PlacementMap, WindowSampler, augment_objects,
+                             HSIN, KIAI, KIND, N_COLUMNS, NC, OMASK, OU, OV, PHASE, SLIDER,
+                             SLIDES, T, WHISTLE,
+                             VEL, X, Y, PlacementMap, WindowSampler, augment_objects,
                              build_placement_maps)
 from .style import encode_conditions
 
@@ -39,6 +41,13 @@ TAGS = (
 
 
 LOOKAHEAD = 17  # quarter-beat slots from this object to four beats ahead
+SECTION_CONTROLS = 8  # density, jump size, stream, sliders, turns, fast turns, cross-screen, kiai
+
+try:
+    _PATTERN_REFERENCE = json.loads((Path(__file__).with_name("pattern_reference.json"))
+                                    .read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    _PATTERN_REFERENCE = {}
 
 
 LONG_GAP = 17  # gap class for "more than four beats"
@@ -165,6 +174,68 @@ def sequence_features(objects: np.ndarray, mel: np.ndarray, cs: float, cond: np.
 
 FEATURES = (2 + 3 + 3 + 1 + 1 + 1 + 4 + 1 + 1 + 2 + 2 + 2 + 2 + 80 + 1 + 3
             + 2 * len(CONDITIONS) + len(TAGS) + 1 + 40 * LOOKAHEAD)
+V3_FEATURES = FEATURES + SECTION_CONTROLS
+
+
+def section_controls(objects: np.ndarray, start: int, count: int, stars: float,
+                     cs: float = 4.0) -> np.ndarray:
+    """Human local section targets over a centered eight-bar window per object."""
+    output = np.zeros((count, SECTION_CONTROLS), dtype=np.float32)
+    if len(objects) < 2 or count <= 0:
+        return output
+    times = objects[:, T]
+    valid_gaps = np.diff(times) / np.maximum(objects[:-1, BEAT], 1.0)
+    valid_gaps = valid_gaps[np.isfinite(valid_gaps) & (valid_gaps > 0)]
+    mean_density = len(objects) / max((times[-1] - times[0]) / 1000.0, 1.0)
+    star_group = "<3" if stars < 3 else "3-4.5" if stars < 4.5 else "4.5-6" if stars < 6 else "6+"
+    limit = _PATTERN_REFERENCE.get("features", {}).get(star_group, {})
+    sharp_limit = float(limit.get("sharp_turn_speed", {}).get("p95", 0.85))
+    cross_limit = float(limit.get("cross_screen_fraction", {}).get("p95", 0.33))
+    radius = max(64.0 - 4.48 * (float(cs) - 4.0), 20.0)
+    diagonal = math.hypot(512.0, 384.0)
+    for out_i, index in enumerate(range(start, min(start + count, len(objects)))):
+        beat = max(float(objects[index, BEAT]), 1.0)
+        lo = int(np.searchsorted(times, times[index] - 16.0 * beat, side="left"))
+        hi = int(np.searchsorted(times, times[index] + 16.0 * beat, side="right"))
+        local = objects[lo:hi]
+        if not len(local):
+            continue
+        span = max((local[-1, T] - local[0, T]) / 1000.0, beat / 1000.0)
+        density = len(local) / span
+        steps = []
+        turns, fast_turns, cross = [], [], []
+        for j in range(max(lo + 1, 1), hi):
+            prev, cur = objects[j - 1], objects[j]
+            gap_ms = max(float(cur[T] - prev[END]), 1.0)
+            dx, dy = float(cur[X] - prev[EX]), float(cur[Y] - prev[EY])
+            distance = math.hypot(dx, dy)
+            steps.append((distance, gap_ms, float(cur[BEAT])))
+            if j >= 2:
+                before = objects[j - 1]
+                prior = objects[j - 2]
+                v1 = np.array([before[X] - prior[EX], before[Y] - prior[EY]], dtype=float)
+                v2 = np.array([cur[X] - before[EX], cur[Y] - before[EY]], dtype=float)
+                n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
+                if n1 > 5 and n2 > 5:
+                    turn = math.degrees(math.acos(float(np.clip(np.dot(v1, v2) / (n1 * n2), -1, 1))))
+                    sharp = turn > 120.0
+                    turns.append(float(sharp))
+                    bpm = 60000.0 / max(float(cur[BEAT]), 1.0)
+                    fast_turns.append(float(sharp and turn / 180.0 * bpm / 180.0 > sharp_limit))
+            cross.append(float(distance / diagonal > cross_limit))
+        mean_distance = float(np.mean([v[0] for v in steps])) if steps else 0.0
+        stream = float(np.mean([v[0] / max(v[2], 1.0) <= 0.5 for v in steps])) if steps else 0.0
+        output[out_i] = (
+            np.clip(math.log1p(density) / max(math.log1p(max(mean_density, 1.0)), 1e-4), 0, 2) / 2,
+            np.clip(mean_distance / max(radius * 5.0, 1.0), 0, 2) / 2,
+            stream,
+            float(np.mean(local[:, KIND] == SLIDER)),
+            float(np.mean(turns)) if turns else 0.0,
+            float(np.mean(fast_turns)) if fast_turns else 0.0,
+            float(np.mean(cross)) if cross else 0.0,
+            float(np.mean(local[:, KIAI] > 0.5)),
+        )
+    return output
 
 
 @dataclass
@@ -172,21 +243,101 @@ class SequenceMap(PlacementMap):
     tags: np.ndarray | None = None
 
 
-def build_sequence_maps(roots, tag_files=(), cache_dir=None, log=print) -> list[SequenceMap]:
+def _v3_style_bucket(m) -> str:
+    """Coarse main style used to balance v3 windows within each half-star level."""
+    tags = np.asarray(getattr(m, "tags", []), dtype=np.float32)
+    groups = {
+        "jump": ("skillset/jumps", "jumps/sharp", "jumps/wide", "jumps/cross-screen",
+                 "jumps/linear", "jumps/triangles", "jumps/back and forth", "jumps/squares"),
+        "stream": ("skillset/streams", "streams/bursts", "streams/flow aim", "streams/stamina",
+                   "streams/spaced streams", "streams/cutstreams", "streams/doubles"),
+        "tech": ("skillset/tech", "tech/aim control", "tech/finger control", "tech/slider tech"),
+        "flow/simple": ("expression/simple", "style/clean", "style/freeform", "expression/repetition"),
+    }
+    scores = {}
+    for name, members in groups.items():
+        indices = [TAGS.index(tag) for tag in members if tag in TAGS]
+        scores[name] = float(np.max(tags[indices])) if indices and len(tags) > max(indices) else 0.0
+    ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    if len(ordered) > 1 and ordered[0][1] >= 0.35 and ordered[1][1] >= 0.35:
+        if ordered[0][1] - ordered[1][1] <= 0.15:
+            return "mixed"
+    if ordered and ordered[0][1] >= 0.3:
+        return ordered[0][0]
+
+    style = getattr(m, "style", {}) or {}
+    fallback = {
+        "jump": float(np.clip((float(style.get("jump", 0.0)) - 0.7) / 0.8, 0, 1)),
+        "stream": float(np.clip(float(style.get("stream", 0.0)) / 0.5, 0, 1)),
+        "tech": float(np.clip(float(style.get("tech", 0.0)), 0, 1)),
+        "flow/simple": float(np.clip(float(style.get("sliders", 0.0)) * 0.7
+                                      + (1.0 - float(style.get("stream", 0.0))) * 0.3, 0, 1)),
+    }
+    ordered = sorted(fallback.items(), key=lambda item: item[1], reverse=True)
+    if len(ordered) > 1 and ordered[0][1] >= 0.35 and ordered[1][1] >= 0.35:
+        if ordered[0][1] - ordered[1][1] <= 0.15:
+            return "mixed"
+    return ordered[0][0] if ordered and ordered[0][1] >= 0.35 else "flow/simple"
+
+
+def _v3_sampling_weights(maps) -> np.ndarray:
+    """Give each available (half-star, main-style) bucket equal sampling weight."""
+    stars = np.asarray([m.style.get("stars", np.nan) for m in maps], dtype=float)
+    levels = np.where(np.isfinite(stars), np.floor(np.nan_to_num(stars) * 2), -1)
+    buckets = [(int(level), _v3_style_bucket(m)) for level, m in zip(levels, maps)]
+    counts = Counter(buckets)
+    weights = np.asarray([1.0 / counts[bucket] for bucket in buckets], dtype=np.float64)
+    return weights / weights.sum()
+
+
+def build_sequence_maps(roots, tag_files=(), cache_dir=None, log=print,
+                       tagger_path=None) -> list[SequenceMap]:
     tags = load_tags(tag_files)
     maps = []
     for m in build_placement_maps(roots, cache_dir, log=log):
         ids = map_ids(m.name)
         votes = tags.get(ids) if ids else None
         maps.append(SequenceMap(**vars(m), tags=tag_vector(votes)))
+    if tagger_path and Path(tagger_path).is_file():
+        from .tagger import load_tagger, tagger_features, tag_probabilities
+        tagger = load_tagger(tagger_path)
+        metrics = torch_load_tagger_metrics(tagger_path)
+        auc_by_tag = metrics.get("auc_by_tag", {})
+        predicted = 0
+        for m in maps:
+            if m.tags[-1] > 0:
+                continue
+            values = tag_probabilities(
+                tagger, tagger_features(m.objects, float(m.style.get("stars", 4.0)), m.cs)[None]
+            )[0]
+            keep = np.array([float(auc_by_tag.get(name, 0.5)) >= 0.58 for name in TAGS])
+            values = np.where(keep & (values >= 0.35), values, 0.0)
+            if values.max() > 0:
+                m.tags[:-1] = values / values.max()
+                m.tags[-1] = 0.5  # Distinguish calibrated predictions from community votes.
+                predicted += 1
+        log(f"tagger supplied calibrated tags for {predicted} additional maps")
     tagged = sum(1 for m in maps if m.tags[-1] > 0)
     log(f"{tagged} of {len(maps)} maps have community tags")
     return maps
 
 
+def torch_load_tagger_metrics(path) -> dict:
+    """Read scalar tagger metrics without initializing an additional device context."""
+    import torch
+    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    return checkpoint.get("metrics", {})
+
+
 class SequenceSampler(WindowSampler):
     """Windows of objects with style, tag and rhythm targets. One extra object past the
     window supplies the last object's "next" targets."""
+
+    def __init__(self, maps, context: int, seed: int = 0, hide: bool = True, v3: bool = False):
+        super().__init__(maps, context, seed, hide)
+        self.v3 = v3
+        if v3:
+            self.weights = _v3_sampling_weights(self.maps)
 
     def conditions(self, m: SequenceMap) -> np.ndarray:
         values = dict(m.style)
@@ -214,6 +365,12 @@ class SequenceSampler(WindowSampler):
             window = objects[:self.context]
             x = sequence_features(window, self.mel(m.mel_path), m.cs, self.conditions(m),
                                   self.energy(m.mel_path))
+            if self.v3:
+                stars = float(m.style.get("stars", 4.5))
+                local = section_controls(m.objects, start, len(window), stars, m.cs)
+                if self.hide and self.rng.random() < 0.4:
+                    local[:] = 0.0
+                x = np.concatenate([x, local], axis=1)
             targets = {k: v[:len(window)] for k, v in rhythm_targets(objects).items()}
             pad = self.context - len(window)
             items = {"x": np.pad(x, ((0, pad), (0, 0))), "y": np.pad(window, ((0, pad), (0, 0))),
@@ -266,18 +423,23 @@ def share_maps(maps: list[SequenceMap], path: Path) -> SharedMaps:
 
 
 class SharedSampler(SequenceSampler):
-    def __init__(self, shared: SharedMaps, context: int, seed: int = 0, hide: bool = True):
+    def __init__(self, shared: SharedMaps, context: int, seed: int = 0, hide: bool = True,
+                 v3: bool = False):
         self.shared = shared
         refs = [r for r in shared.refs if r.end - r.start >= 16]
         self.maps = refs
         self.context = context
         self.rng = np.random.default_rng(seed)
         self.hide = hide
+        self.v3 = v3
         stars = np.array([r.style.get("stars", np.nan) for r in refs], dtype=float)
-        buckets = np.where(np.isfinite(stars), np.floor(np.nan_to_num(stars) * 2), -1)
-        _, inverse, counts = np.unique(buckets, return_inverse=True, return_counts=True)
-        weights = 1.0 / np.sqrt(counts[inverse])
-        self.weights = weights / weights.sum()
+        if v3:
+            self.weights = _v3_sampling_weights(refs)
+        else:
+            buckets = np.where(np.isfinite(stars), np.floor(np.nan_to_num(stars) * 2), -1)
+            _, inverse, counts = np.unique(buckets, return_inverse=True, return_counts=True)
+            weights = 1.0 / np.sqrt(counts[inverse])
+            self.weights = weights / weights.sum()
         self._mels, self._energy = {}, {}
 
     def batch(self, size: int) -> dict[str, np.ndarray]:
@@ -290,6 +452,13 @@ class SharedSampler(SequenceSampler):
             window = objects[:self.context]
             x = sequence_features(window, self.mel(ref.mel_path), ref.cs, self.conditions(ref),
                                   self.energy(ref.mel_path))
+            if self.v3:
+                all_objects = self.shared.objects(ref)
+                stars = float(ref.style.get("stars", 4.5))
+                local = section_controls(all_objects, start, len(window), stars, ref.cs)
+                if self.hide and self.rng.random() < 0.4:
+                    local[:] = 0.0
+                x = np.concatenate([x, local], axis=1)
             targets = {k: v[:len(window)] for k, v in rhythm_targets(objects).items()}
             pad = self.context - len(window)
             items = {"x": np.pad(x, ((0, pad), (0, 0))), "y": np.pad(window, ((0, pad), (0, 0))),
@@ -304,9 +473,10 @@ class SharedSampler(SequenceSampler):
 _worker = None
 
 
-def _init_worker(shared: SharedMaps, context: int, batch_size: int, seed: int) -> None:
+def _init_worker(shared: SharedMaps, context: int, batch_size: int, seed: int,
+                 v3: bool = False) -> None:
     global _worker
-    _worker = (SharedSampler(shared, context, seed + os.getpid()), batch_size)
+    _worker = (SharedSampler(shared, context, seed + os.getpid(), v3=v3), batch_size)
 
 
 def _make_batch(_=None) -> dict[str, np.ndarray]:
@@ -317,14 +487,14 @@ def _make_batch(_=None) -> dict[str, np.ndarray]:
 
 
 def batch_stream(shared: SharedMaps, context: int, batch_size: int, seed: int, workers: int = 4,
-                 prefetch: int = 8):
+                 prefetch: int = 8, v3: bool = False):
     """Endless training batches from ``workers`` processes (or this one with 0)."""
     if workers <= 0:
-        _init_worker(shared, context, batch_size, seed)
+        _init_worker(shared, context, batch_size, seed, v3=v3)
         while True:
             yield _make_batch()
     pool = multiprocessing.get_context("spawn").Pool(
-        workers, initializer=_init_worker, initargs=(shared, context, batch_size, seed))
+        workers, initializer=_init_worker, initargs=(shared, context, batch_size, seed, v3))
     pending = deque(pool.apply_async(_make_batch) for _ in range(prefetch))
     try:
         while True:

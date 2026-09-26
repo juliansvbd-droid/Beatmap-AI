@@ -41,6 +41,7 @@ def critic_features(
     mel: np.ndarray | None,
     stars: float,
     energy: np.ndarray | None = None,
+    audio_offset_ms: float = 0.0,
 ) -> np.ndarray:
     """Extract (N, CRITIC_FEATURES) features from an object sequence (N, N_COLUMNS).
 
@@ -111,7 +112,8 @@ def critic_features(
 
     # Audio features around object time (81 cols)
     if mel is not None and mel.shape[1] > 0:
-        frames = np.clip(np.rint(o[:, T] * FPS / 1000.0).astype(int), 0, mel.shape[1] - 1)
+        frames = np.clip(np.rint((o[:, T] + audio_offset_ms) * FPS / 1000.0).astype(int),
+                         0, mel.shape[1] - 1)
         window = np.clip(frames[:, None] + np.arange(-2, 3)[None, :], 0, mel.shape[1] - 1)
         audio = np.asarray(mel[:, window.ravel()], dtype=np.float32).reshape(mel.shape[0], n, 5).mean(axis=2).T
         if energy is None:

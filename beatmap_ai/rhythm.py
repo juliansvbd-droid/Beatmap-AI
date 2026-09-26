@@ -255,6 +255,7 @@ def plan_objects(
     spacing: np.ndarray | None = None,
     stars: float | None = None,
     variety: float = RHYTHM_VARIETY,
+    human_constraints: bool = True,
 ) -> list[PlannedObject]:
     """Build the full rhythm for one difficulty.
 
@@ -333,6 +334,8 @@ def plan_objects(
         at_notes = sample_peak(slider_probs, grid.times[ticks], radius=1)
         most = float(np.interp(level, [2.0, 3.5, 5.0, 6.0], [0.68, 0.66, 0.55, 0.48]))
         slider_cut = max(0.5, float(np.quantile(at_notes, 1.0 - most)))
+    if not human_constraints:
+        kick_confidence, repeat_chance, quick_release, slider_cut = 0.0, 1.0, 1.0, 0.0
     for n, tick in enumerate(ticks):
         time = float(grid.times[tick])
         local_beat_length = (

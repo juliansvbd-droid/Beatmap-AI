@@ -71,7 +71,16 @@ def iter_beatmap_texts(root: str | Path) -> Iterator[tuple[str, str, AudioSource
     """Yield (name, .osu text, audio source, stamp) for every .osu file under ``root``
     whose audio (or precomputed spectrogram) exists. ``stamp`` changes when the file does."""
     root = Path(root)
-    for osz in sorted(root.rglob("*.osz")):
+    def project_training_input(path: Path) -> bool:
+        # Night-run outputs live below the dataset root, but are generated examples,
+        # never human training data for a later run.
+        try:
+            relative = path.relative_to(root)
+        except ValueError:
+            return True
+        return not relative.parts or relative.parts[0].lower() != "night"
+
+    for osz in sorted(path for path in root.rglob("*.osz") if project_training_input(path)):
         try:
             with zipfile.ZipFile(osz) as zf:
                 names = {n.lower(): n for n in zf.namelist()}
@@ -86,7 +95,7 @@ def iter_beatmap_texts(root: str | Path) -> Iterator[tuple[str, str, AudioSource
             if audio is not None:
                 yield (f"{osz.name}/{entry}", text, AudioSource(osz.resolve(), audio),
                        (stat.st_mtime, stat.st_size, entry))
-    for osu_file in sorted(root.rglob("*.osu")):
+    for osu_file in sorted(path for path in root.rglob("*.osu") if project_training_input(path)):
         text = osu_file.read_text(encoding="utf-8", errors="replace")
         match = _AUDIO_LINE.search(text)
         audio = osu_file.parent / (match.group(1).strip() if match else "")

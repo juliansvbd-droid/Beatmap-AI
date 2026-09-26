@@ -344,6 +344,7 @@ class Choice:
     chord: tuple[float, float] | None = None  # local frame, relative to slider length
     side: float = 1.0
     hitsound: int = 0  # osu! hitsound bits (2 whistle, 4 finish, 8 clap)
+    path: np.ndarray | None = None  # optional Kx2 local slider path from sequence v3
 
 
 class LearnedPlacer:
@@ -497,7 +498,28 @@ class _Walker:
             rows[i, column] = float(bool(choice.hitsound & bit))
         end = (x, y)
         length = float(rows[i, LEN])
-        if item.kind == "slider" and choice.chord is not None and length >= 1.0:
+        if item.kind == "slider" and choice.path is not None and length >= 1.0:
+            local = np.asarray(choice.path, dtype=np.float32).reshape(-1, 2)
+            c, s = math.cos(self.heading), math.sin(self.heading)
+            controls = []
+            for u, v in local[1:]:
+                px = x + length * (c * float(u) - s * float(v))
+                py = y + length * (s * float(u) + c * float(v))
+                controls.append((px, py))
+            if controls and all(self.p.in_bounds(*pt) for pt in controls):
+                obj.kind, obj.curve_type, obj.curve_points, obj.length = "slider", "B", controls, length
+                obj.slides = max(int(getattr(item, "slides", 1)), 1)
+                end = controls[-1]
+                far = rotate(end[0] - x, end[1] - y, -self.heading)
+                rows[i, [CU, CV, CMASK]] = far[0] / length, far[1] / length, 1.0
+                if math.hypot(end[0] - x, end[1] - y) >= MIN_MOVE:
+                    self.heading = math.atan2(end[1] - y, end[0] - x)
+                if obj.slides % 2 == 0:
+                    end = (x, y)
+                    self.heading += math.pi
+            else:
+                choice.path = None
+        if item.kind == "slider" and choice.path is None and choice.chord is not None and length >= 1.0:
             cu, cv = choice.chord
             ratio = math.hypot(cu, cv)
             chord_angle = math.atan2(cv, cu) + self.heading

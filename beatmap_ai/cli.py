@@ -41,6 +41,12 @@ def main(argv: list[str] | None = None) -> None:
                      help="disable critic model ranking")
     gen.add_argument("--candidates", type=int, default=4,
                      help="candidates to evaluate per chunk with critic (default: 4)")
+    gen.add_argument("--passes", type=int, default=1,
+                     help="candidate refinement passes per section (default: 1)")
+    gen.add_argument("--songfit", help="experimental map-to-song matching checkpoint")
+    gen.add_argument("--planner", help="experimental full-song pre-planner checkpoint")
+    gen.add_argument("--no-crutches", dest="crutches", action="store_false",
+                     help="measure the sequence model without the hand-tuned flow/slider constraints")
     gen.add_argument("--variety", type=float, default=0.5,
                      help="rhythm variety from 0 (close to the beat) to 1 (varied, longer "
                           "sliders); default 0.5")
@@ -146,7 +152,9 @@ def main(argv: list[str] | None = None) -> None:
                  model_path=args.model, bpm=args.bpm, offset=args.offset,
                  title=args.title, artist=args.artist, seed=args.seed, style=style or None,
                  placement_path=placement_arg, repeat_sections=args.repeats,
-                 variety=args.variety, critic_path=args.critic, candidates=args.candidates)
+                 variety=args.variety, critic_path=args.critic, candidates=args.candidates,
+                 passes=args.passes, songfit_path=args.songfit, planner_path=args.planner,
+                 crutches=args.crutches)
     elif args.command == "analyze":
         from .generator import analyze
         features, timing = analyze(args.audio)
