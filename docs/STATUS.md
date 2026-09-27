@@ -222,8 +222,16 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   Wendungen Insane 38 → 18 % (~33 %), Expert 36 → 15 % (~51 %). Normal etwas schlechter
   (Musterabweichung 1,20 → 1,59). Vermutung: Krücken (`sharp_keep`, Abstands-Feinanpassung)
   sind auf v2 abgestimmt; v3 sah im Training Abschnitts-Vorgaben, die beim Erzeugen fehlen.
-  **Nicht übernommen**; nächster Schritt: Blindtest v2 vs. v3 (Nutzer), dann ggf. Krücken für
-  v3 anpassen / Vorplanung als Abschnittsquelle testen.
+  **Nicht übernommen.**
+- **Blindtest v2 vs. v3 (Nutzer, 27.09. spät, GUERREIRO + ALQUIMIA, Insane + Expert): v2 gewinnt
+  3 von 4** (v3 nur GUERREIRO Insane, das 0,36★ leichter war). v3-Expert: „sehr viele sehr
+  knappe Doubles“, „Schlangen-Hüpfer durch die ganze Map“; v2 „deutlich konsistenter“, bessere
+  Platzierung. Bei **beiden**: Schwierigkeit über **mehr Noten statt besserer Sprünge**, zu eng
+  am Beat, Noten in zwei geteilt. Lehre: P95-Ausreißer allein reichen nicht als Qualitätsmaß
+  (v3 hatte weniger Ausreißer, aber zu kleine Sprünge → Sternsuche über mehr Noten).
+  **Nächster Schritt:** Sternsuche umbauen – zuerst größere Sprünge (über `follow(scale)`,
+  gewürfelt statt gestreckt), erst dann mehr Noten und nur wo die Musik sie hergibt; danach
+  v3 erneut testen.
 
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein
