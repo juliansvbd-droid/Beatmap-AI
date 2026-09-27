@@ -207,6 +207,24 @@ Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
 
+## Tageslauf 27.09. (19:15–22:31): v3 groß + Vorplanung – Ergebnis
+- **v3 groß** (26,14 Mio., hidden 512, 8 Schichten, Kontext 256, Tagger-Tags für 36.236 Maps):
+  168 Epochen × 500 Schritte × 8, bestes Val **1,871** (kleines v3 im Nachtlauf: 2,78).
+  Checkpoint `D:/BeatMap-AI-Dataset/day/2026-09-27/sequence-v3.pt` (fortsetzbar: `.last.pt`).
+  Training ~0 am Ende → starkes Auswendiglernen; mehr Daten wären der nächste Hebel.
+- **Vorplanung** (0,6 Mio.): 8 Epochen, Hauptteil P/R ≈ 0,68/0,69, Kiai P/R ≈ 0,72/0,62,
+  Sterne-MAE ≈ 0,5★, Abschnittswerte-MAE 0,11. Checkpoint `…/day/2026-09-27/planner.pt`.
+  Val-Verlust ab Epoche 3 steigend → früh stoppen/mehr Regularisierung.
+- **v3 gegen v2** (5 Songs × Normal/Insane/Expert, App-Einstellungen, v2 = heutiger App-Stand):
+  Insane P95-Ausreißer 39,8 → **18,9**/100, Musterabweichung 0,94 → **0,53**; Expert 16,0 →
+  9,7 bzw. 0,66 → 0,48 – **die gemessene Lücke zu Mapperatorinator halbiert**. Aber **zu
+  zahm**: Sprünge ½ Beat Insane 108 → 66 px (Mensch ~157), Expert 129 → 78 (~200); scharfe
+  Wendungen Insane 38 → 18 % (~33 %), Expert 36 → 15 % (~51 %). Normal etwas schlechter
+  (Musterabweichung 1,20 → 1,59). Vermutung: Krücken (`sharp_keep`, Abstands-Feinanpassung)
+  sind auf v2 abgestimmt; v3 sah im Training Abschnitts-Vorgaben, die beim Erzeugen fehlen.
+  **Nicht übernommen**; nächster Schritt: Blindtest v2 vs. v3 (Nutzer), dann ggf. Krücken für
+  v3 anpassen / Vorplanung als Abschnittsquelle testen.
+
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein
   ±16-Beat-Fenster in Python – **3 s pro v3-Trainingsbatch** (32 Fenster, Kontext 192), v3 hat

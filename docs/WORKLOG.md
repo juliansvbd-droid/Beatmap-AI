@@ -6,6 +6,12 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 
 
 
+
+## 2026-09-27 spät – Claude Code (Opus 5.5, Auswertung Tageslauf)
+- v3 groß (Val 1,871) und Vorplanung trainiert; v3 gegen v2 auf 5 Songs gemessen (Zahlen in
+  STATUS „Tageslauf 27.09.“): halb so viele Ausreißer, bessere Muster, aber zu kleine Sprünge.
+  Nicht in die App übernommen. Blindtest v2/v3 beim Nutzer als Nächstes.
+
 ## 2026-09-27 abends – Claude Code (Opus 5.5, Geräte-Optionen + Tageslauf)
 - App: „Rechnen auf: Automatisch / Grafikkarte (NVIDIA oder AMD) / Nur Prozessor (CPU)“
   (`--device auto|gpu|cpu`, `generator.DEVICE_PREFERENCE`, `device_summary`) und Anzeige der
