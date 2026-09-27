@@ -1,6 +1,6 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-27 15:56:28 W. Europe Summer Time, von Codex._
+_Zuletzt aktualisiert: 2026-09-27 ~23:45 W. Europe Summer Time, von Claude Code (Cloud)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
@@ -241,6 +241,21 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   treffen etwas schlechter (Expert teils 5,1–5,4 statt 5,6). Zielkonflikt: menschliche
   Dichte/Sprunggröße gegen mehr unsaubere Bewegungen → **Blindtest** (Expert: v2 alt / v2
   Sprünge zuerst / v3 Sprünge zuerst) entscheidet. App unverändert (geprüft: bitgleich).
+- **Befund Abschnittswerte (27.09. spät, Claude Code Cloud, nur gelesen) – wahrscheinlicher
+  Grund für „v3 zu zahm“:** v3 lernt mit 8 Abschnittswerten (Dichte, Sprunggröße, Streams,
+  Slider, scharfe/schnelle Wendungen, Quer-Sprünge, Kiai), berechnet aus der **menschlichen Map
+  selbst** über ±16 Beats um jede Note – also inklusive der Sprünge, die v3 vorhersagen soll
+  (`sequence_data.section_controls`; in 60 % der Trainingsfenster vorhanden, sonst 0). In der
+  App sind sie ohne `--planner` immer 0 (`SequencePlacer._model_features`). Der Val-Verlust
+  (1,871 groß / 2,78 klein) läuft mit `hide=False`, also **immer mit** den menschlichen Werten:
+  er misst nicht die Lage in der App, und der „beste“ Checkpoint wurde danach gewählt. v3 +
+  Vorplanung wurde nie zusammen gemessen; die UI sucht die Vorplanung nur unter
+  `night/*/planner.best.pt`, der Tageslauf-Planner liegt unter `day/2026-09-27/`.
+  Vorschlag (noch nicht mit dem Nutzer abgestimmt): erst ohne Training messen (Val-Verlust mit
+  menschlichen Werten / Nullen / Planner-Werten; 5 Songs mit `--planner`), dann v3 vom
+  vorhandenen Checkpoint mit App-ähnlichen Werten nachtrainieren (4-Takt-Mittel + Rauschen oder
+  Planner-Vorhersagen, Auswahl nach App-ähnlichem Val) und die Sternsuche über den Sprung-Wert
+  steuern statt über Strecken/mehr Noten.
 
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein

@@ -7,6 +7,18 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 
 
 
+## 2026-09-27 ~23:45 – Claude Code (Cloud-Sitzung, Frage „welche KI zuerst upgraden?“)
+- Nur gelesen: keine Code-Änderung, kein Training (Cloud hat keine GPU und keine Daten).
+- Empfehlung an den Nutzer: **Platzierung (v3) zuerst**, aber nicht größer trainieren, sondern
+  zuerst die Abweichung Training ↔ App beheben. Befund mit Codestellen in STATUS
+  („Tageslauf 27.09.“ → „Befund Abschnittswerte“): v3 lernt mit Abschnittswerten aus der
+  menschlichen Map selbst (±16 Beats, inkl. der vorherzusagenden Sprünge), bekommt in der App
+  ohne `--planner` Nullen, und sein Val-Verlust wird immer mit den menschlichen Werten gemessen.
+  Die UI findet den Tageslauf-Planner nicht (sucht nur `night/*/planner.best.pt`).
+- Offen / Angebot an den Nutzer: Code für die Messung (Val mit menschlichen Werten / Nullen /
+  Planner-Werten) und für App-ähnliches v3-Nachtraining in einer Cloud-Sitzung vorbereiten;
+  GPU-Teil danach lokal.
+
 ## 2026-09-27 spät – Claude Code (Opus 5.5, Auswertung Tageslauf)
 - v3 groß (Val 1,871) und Vorplanung trainiert; v3 gegen v2 auf 5 Songs gemessen (Zahlen in
   STATUS „Tageslauf 27.09.“): halb so viele Ausreißer, bessere Muster, aber zu kleine Sprünge.
