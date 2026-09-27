@@ -57,6 +57,9 @@ def main(argv: list[str] | None = None) -> None:
     gen.add_argument("--title")
     gen.add_argument("--artist")
     gen.add_argument("--seed", type=int, default=0)
+    gen.add_argument("--jumps-first", action="store_true",
+                     help="reach higher star targets with bigger jumps before more notes "
+                          "(experimental)")
     gen.add_argument("--device", choices=("auto", "gpu", "cpu"), default="auto",
                      help="run the models on the graphics card if there is one (auto, gpu: "
                           "NVIDIA via CUDA or AMD via ROCm) or on the processor only (cpu)")
@@ -145,6 +148,8 @@ def main(argv: list[str] | None = None) -> None:
         from . import generator
         from .generator import generate
         generator.DEVICE_PREFERENCE = args.device
+        if args.jumps_first:
+            generator.JUMP_SCALE_MAX = 1.8
         if args.device != "auto":
             summary = generator.device_summary()
             if args.device == "gpu" and summary == "Prozessor (CPU)":

@@ -232,6 +232,15 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   **Nächster Schritt:** Sternsuche umbauen – zuerst größere Sprünge (über `follow(scale)`,
   gewürfelt statt gestreckt), erst dann mehr Noten und nur wo die Musik sie hergibt; danach
   v3 erneut testen.
+- **Sprünge zuerst (27.09. nachts, `--jumps-first`, `generator.JUMP_SCALE_MAX`; Standard aus):**
+  Expert, 5 Songs: v2 Noten/s 5,20 → **3,81** (Mensch 3,94), Triples 2,75 → 0,24/100,
+  Sprung ½ Beat 129 → **187 px** (Mensch 200) – genau „weniger Noten, bessere Sprünge“. Aber
+  P95-Ausreißer 16 → 53/100, scharfe Wendungen 36 → 62 % (Mensch 51 %), Musterabweichung
+  0,66 → 0,99. v3: Noten/s 5,10 → 4,42, Sprünge 78 → 117 px, Ausreißer 9,7 → 28,
+  Musterabweichung 0,48 → 0,59. Insane ähnlich, schwächer; Normal unverändert. Sterne
+  treffen etwas schlechter (Expert teils 5,1–5,4 statt 5,6). Zielkonflikt: menschliche
+  Dichte/Sprunggröße gegen mehr unsaubere Bewegungen → **Blindtest** (Expert: v2 alt / v2
+  Sprünge zuerst / v3 Sprünge zuerst) entscheidet. App unverändert (geprüft: bitgleich).
 
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein

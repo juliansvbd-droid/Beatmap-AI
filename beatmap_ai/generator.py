@@ -21,6 +21,9 @@ from .timing import (TimingEstimate, estimate_swing, estimate_timing, fit_offset
                      track_variable_timing)
 
 MAX_COMBO = 16
+# Largest factor on the placement's moves when a map is too easy (step 1 of the star
+# search). 1.0 = off (default until the user's blind test decides); --jumps-first: 1.8.
+JUMP_SCALE_MAX = 1.0
 BUNDLED_MODEL = Path(__file__).parent / "models" / "rhythm.pt"
 BUNDLED_SEQUENCE = Path(__file__).parent / "models" / "sequence.pt"
 BUNDLED_PLACEMENT = Path(__file__).parent / "models" / "placement.pt"
@@ -316,24 +319,42 @@ def generate_beatmap(
         return actual
 
     if sequence:
-        # Harder maps are not just wider ones: ask both models for a harder (or easier)
-        # map -- they know how mappers do that (rhythm, streams, angles, jumps) -- and
-        # leave only a small correction to the spacing.
-        best_k, best_plan = 1.0, plan
-        # Within a narrow band only: asking for far more stars brings in patterns (kick
-        # sliders, streams) that belong to much harder maps.
-        lo, hi = (1.0, 1.25) if reached < stars else (0.8, 1.0)
-        for _ in range(6):
-            if best[0] < 0.1:
-                break
-            steer["k"] = (lo * hi) ** 0.5
-            candidate_plan = build(1.0)
+        # How a mapper makes a map harder: bigger jumps first, faster rhythm only after that.
+        # 1) Too easy: the placement draws its moves larger (follow's scale acts while
+        #    sampling, so patterns and flow are kept -- not a stretch afterwards).
+        # 2) Then ask both models for a harder (or easier) map, within a narrow band.
+        # 3) Then the amount of notes. 4) Finally a small spacing correction.
+        # Before 28.09. step 1 did not exist: stars came from more notes and doubles
+        # ("mehr Noten statt bessere Jumps" in the user's blind test).
+        chosen = {"k": 1.0, "plan": plan, "jump": 1.0}
+
+        def attempt(candidate_plan, jump: float) -> float:
             before = best[0]
-            actual = consider(place(candidate_plan, 1.0))
+            actual = consider(place(candidate_plan, 1.0, jump))
             if best[0] < before:
-                best_k, best_plan = steer["k"], candidate_plan
-            lo, hi = (steer["k"], hi) if actual < stars else (lo, steer["k"])
-        steer["k"], plan = best_k, best_plan
+                chosen.update(k=steer["k"], plan=candidate_plan, jump=jump)
+            return actual
+
+        if reached < stars and JUMP_SCALE_MAX > 1.0:
+            lo, hi = 1.0, JUMP_SCALE_MAX
+            for _ in range(5):
+                if best[0] < 0.1:
+                    break
+                mid = (lo * hi) ** 0.5
+                actual = attempt(plan, mid)
+                lo, hi = (mid, hi) if actual < stars else (lo, mid)
+        jump = chosen["jump"]
+        if best[0] >= 0.1:
+            # Within a narrow band only: asking for far more stars brings in patterns (kick
+            # sliders, streams) that belong to much harder maps.
+            lo, hi = (1.0, 1.25) if best[1] < stars else (0.8, 1.0)
+            for _ in range(6):
+                if best[0] < 0.1:
+                    break
+                steer["k"] = (lo * hi) ** 0.5
+                actual = attempt(build(1.0), jump)
+                lo, hi = (steer["k"], hi) if actual < stars else (lo, steer["k"])
+        steer["k"], plan = chosen["k"], chosen["plan"]
         if best[0] >= 0.15:
             # Still off: change the amount of notes (far too calm a song for the rating:
             # take the frame model's most likely ticks until the density fits).
@@ -342,32 +363,29 @@ def generate_beatmap(
             lo, hi = (1.0, 1.8) if short else (0.5, 1.0)
             for _ in range(5):
                 density_scale = (lo * hi) ** 0.5
-                candidate_plan = build(density_scale, force)
-                before = best[0]
-                actual = consider(place(candidate_plan, 1.0))
-                if best[0] < before:
-                    plan = candidate_plan
+                actual = attempt(build(density_scale, force), jump)
                 if best[0] < 0.15:
                     break
                 lo, hi = (density_scale, hi) if actual < stars else (lo, density_scale)
+            plan = chosen["plan"]
         if critic is not None:
             # The search above placed without the critic (4x faster); rank the chosen
             # rhythm's placement with it now and fine-tune that one.
             steer["critic"] = True
             searched, best = best, (float("inf"), stars, None)
-            consider(place(plan, 1.0))
+            consider(place(plan, 1.0, jump))
         lo, hi = 0.85, 1.18
         for _ in range(6):
             if best[0] < 0.05:
                 break
             mid = (lo * hi) ** 0.5
-            actual = consider(place(plan, mid))
+            actual = consider(place(plan, mid, jump))
             lo, hi = (mid, hi) if actual < stars else (lo, mid)
         if critic is not None and best[0] > searched[0] + 0.2:
             best = searched  # the critic's pick moved the stars too far: keep the search's
         if log is not None:
             log(f"  [{preset.name}] target {stars:.2f}*, reached {best[1]:.2f}* "
-                f"(asked the models for {stars * best_k:.2f}*)")
+                f"(jumps x{jump:.2f}, asked the models for {stars * chosen['k']:.2f}*)")
         return best[2]
 
     scale = fit_spacing(plan)
