@@ -790,7 +790,7 @@ class BeatmapApp(tk.Tk):
 
                 features, timing = analyze(audio)
                 model = load_planner(checkpoint, device="cpu")
-                advice = plan_song(model, features.mel, timing.beat_length, 4.5)
+                advice = plan_song(model, features.mel, timing.beat_length, 4.5, timing.offset_ms)
                 limit = float(advice["max_stars"])
                 distribution = advice["star_distribution"].tolist()
                 levels = [0.5 * (index + 1) for index in range(len(distribution))]

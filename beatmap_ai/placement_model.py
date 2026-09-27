@@ -184,6 +184,23 @@ def sample_mixture(params: np.ndarray, rng: np.random.Generator, temperature: fl
     return mu + sigma * temperature * rng.standard_normal(2)
 
 
+def through_points(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """osu! Bezier control points (after the head) for a smooth curve that passes through
+    every given point: one cubic segment per pair (Catmull-Rom tangents), segments joined by
+    a repeated anchor. Writing points that lie on a curve as plain control points instead
+    gives a flatter, shorter curve whose end is not where the model put it."""
+    pts = [np.asarray(p, dtype=np.float64) for p in points]
+    controls: list[tuple[float, float]] = []
+    for i in range(len(pts) - 1):
+        p0, p1, p2 = pts[max(i - 1, 0)], pts[i], pts[i + 1]
+        p3 = pts[min(i + 2, len(pts) - 1)]
+        c1, c2 = p1 + (p2 - p0) / 6.0, p2 - (p3 - p1) / 6.0
+        controls += [tuple(c1), tuple(c2), tuple(p2)]
+        if i < len(pts) - 2:
+            controls.append(tuple(p2))
+    return [(float(a), float(b)) for a, b in controls]
+
+
 def sample_mixture_guided(params: np.ndarray, walker, gap_beats: float,
                           rng: np.random.Generator, temperature: float = 1.0) -> np.ndarray:
     """Sample mixture with boundary and flow awareness:
@@ -400,6 +417,7 @@ class LearnedPlacer:
                 choices.append(None)
                 state.spinner(rows, i)
                 continue
+            state.heading_into(rows, i)
             lo = max(0, i - context + 1)
             x = token_features(rows[lo:i + 1], self.mel, self.preset.cs, self.cond, self.energy)
             offset, chord, bend, hitsounds = self.model(torch.from_numpy(x)[None].to(self.device))
@@ -448,6 +466,27 @@ class _Walker:
         self.heading = 0.0
         self.recent: list[tuple[float, float, float]] = []  # (x, y, time) of earlier objects
         self.stacked = False  # the last object was stacked on the one before
+
+    def _fit_path(self, x: float, y: float, local: np.ndarray, length: float):
+        """The predicted slider path (points along it, in the heading frame, per unit length)
+        placed at (x, y): as predicted if it fits the playfield, else turned or mirrored like
+        the chord-and-bend fallback. None if no variant fits."""
+        for mirror in (1.0, -1.0):
+            for turn in [0.0] + [s * k * math.radians(15) for k in range(1, 9) for s in (1, -1)]:
+                angle = self.heading + turn
+                c, s_ = math.cos(angle), math.sin(angle)
+                points = [(x + length * (c * float(u) - s_ * mirror * float(v)),
+                           y + length * (s_ * float(u) + c * mirror * float(v))) for u, v in local[1:]]
+                if points and all(self.p.in_bounds(*pt) for pt in points):
+                    return points
+        return None
+
+    def heading_into(self, rows: np.ndarray, i: int) -> None:
+        """Write the current direction of movement into row i before the model reads it.
+        In training every row carries the heading its offset is measured against
+        (placement_data.map_objects); ``place`` sets the same value, but only after the
+        model has been asked, so the model saw 0/0 -- a direction it never trained on."""
+        rows[i, HCOS], rows[i, HSIN] = math.cos(self.heading), math.sin(self.heading)
 
     def fits(self, u: float, v: float, time: float | None = None, gap_beats: float = 1.0) -> bool:
         """On the playfield and readable: stacked pairs on 1/4 or 1/2 notes (no longer
@@ -500,16 +539,12 @@ class _Walker:
         length = float(rows[i, LEN])
         if item.kind == "slider" and choice.path is not None and length >= 1.0:
             local = np.asarray(choice.path, dtype=np.float32).reshape(-1, 2)
-            c, s = math.cos(self.heading), math.sin(self.heading)
-            controls = []
-            for u, v in local[1:]:
-                px = x + length * (c * float(u) - s * float(v))
-                py = y + length * (s * float(u) + c * float(v))
-                controls.append((px, py))
-            if controls and all(self.p.in_bounds(*pt) for pt in controls):
+            on_curve = self._fit_path(x, y, local, length)
+            if on_curve is not None:
+                controls = through_points([(x, y)] + on_curve)
                 obj.kind, obj.curve_type, obj.curve_points, obj.length = "slider", "B", controls, length
                 obj.slides = max(int(getattr(item, "slides", 1)), 1)
-                end = controls[-1]
+                end = on_curve[-1]
                 far = rotate(end[0] - x, end[1] - y, -self.heading)
                 rows[i, [CU, CV, CMASK]] = far[0] / length, far[1] / length, 1.0
                 if math.hypot(end[0] - x, end[1] - y) >= MIN_MOVE:

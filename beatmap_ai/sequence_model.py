@@ -63,6 +63,7 @@ FULL_BEND_FROM_PX = 110.0  # from here on, curvature as drawn from CHORD_QUANTIL
 # maps got 12-17 % bent sliders (chord < 0.9 x length) and 3-7 % near-circles, ranked maps
 # of those stars 4 % and 1 % (scripts/compare_maps.py). Half the bend matches them.
 BEND_SCALE = 0.5
+MAX_COMBO_LENGTH = 16  # as generator.MAX_COMBO
 
 
 def human_chord(chord: tuple[float, float], stars: float, length: float,
@@ -513,10 +514,16 @@ class SequencePlacer:
             i = len(plan) - 1
             item = plan[i]
             rows = np.vstack([rows, self._row(item)])
+            walker.heading_into(rows, i)
             lo = max(0, i - context + 1)
             x = self._model_features(rows[lo:])
-            step_x = torch.from_numpy(x[-1:][None]).to(self.device)
-            raw, kv_cache = self.model.step(step_x, i, kv_cache)
+            if i < context:
+                step_x = torch.from_numpy(x[-1:][None]).to(self.device)
+                raw, kv_cache = self.model.step(step_x, i, kv_cache)
+            else:
+                # Positions are absolute within the window: once it is full, every cached
+                # token would sit one place off, so evaluate the sliding window instead.
+                raw = self.model(torch.from_numpy(x)[None].to(self.device))
             out = {k: v[0, -1].float().cpu().numpy() for k, v in raw.items()}
 
             # Where this object goes (guided by boundaries and flow curvature).
@@ -533,15 +540,14 @@ class SequencePlacer:
             choice.hitsound = sum(bit for bit, p in zip(HITSOUND_BITS.values(), hit_p)
                                   if self.rng.random() < p)
             if item.kind == "slider":
-                if "form" in out:
+                chord = sample_mixture(out["chord"], self.rng, self.temperature)
+                choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
+                                            float(rows[i, LEN]), self._bend_rng(item))
+                                if self.use_crutches else (float(chord[0]), float(chord[1])))
+                bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
+                choice.side = 1.0 if self.rng.random() < bend_p else -1.0
+                if "form" in out and not self.use_crutches:
                     choice.path = np.clip(out["form"], -1.5, 1.5).reshape(-1, 2)
-                else:
-                    chord = sample_mixture(out["chord"], self.rng, self.temperature)
-                    choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                                float(rows[i, LEN]), self._bend_rng(item))
-                                    if self.use_crutches else (float(chord[0]), float(chord[1])))
-                    bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
-                    choice.side = 1.0 if self.rng.random() < bend_p else -1.0
             choices.append(choice)
             walker.place(rows, i, item, choice, 1.0)
 
@@ -584,6 +590,25 @@ class SequencePlacer:
         return lo + int(np.argmin(np.abs(times[lo:j + 1] - item.time)))
 
     @staticmethod
+    def _decide_combo(item, out_plan, rng) -> None:
+        """New combo or not, from the model's prediction at the previous object. The fixed
+        rule (``generator.assign_combos``: every 1-2 bars) gave 7-11 objects per combo on
+        some songs and 1.5-2.4 on slow ones, against 4-5 in ranked maps. A long pause or a
+        very long combo still forces a new one."""
+        prev = out_plan[-1]
+        logit = getattr(prev, "next_combo_logit", None)
+        if logit is None:
+            return
+        length = 0
+        for earlier in reversed(out_plan):
+            length += 1
+            if earlier.new_combo or length >= MAX_COMBO_LENGTH:
+                break
+        forced = (item.time - prev.end_time > 4 * (item.beat_length or 500.0)
+                  or length >= MAX_COMBO_LENGTH)
+        item.new_combo = bool(forced or rng.random() < 1.0 / (1.0 + math.exp(-logit)))
+
+    @staticmethod
     def _sharp(u: float, v: float) -> bool:
         """A move that turns back by more than 120 degrees (u runs along the heading)."""
         return math.hypot(u, v) > 20.0 and math.degrees(math.atan2(abs(v), u)) > 120.0
@@ -595,12 +620,15 @@ class SequencePlacer:
         from .placement_model import Choice, sample_mixture
         context = self.model.config["context"]
         i = len(out_plan)
+        if out_plan:
+            self._decide_combo(item, out_plan, rng)
         out_plan.append(item)
         row = self._row(item)
         if i < len(rows):
             rows[i] = row
         else:
             rows = np.vstack([rows, row])
+        walker.heading_into(rows, i)
         x = self._model_features(rows[max(0, i - context + 1):i + 1])
         raw = self.model(torch.from_numpy(x)[None].to(self.device))
         o_len = raw["offset"].shape[-1]
@@ -613,6 +641,7 @@ class SequencePlacer:
             raw["chord"][0, -1].view(-1),
             raw["bend"][0, -1].view(-1),
             raw["gap"][0, -1].view(-1),
+            raw["combo"][0, -1].view(-1),
         ]).float().cpu().numpy()
         i1 = o_len
         i2 = i1 + h_len
@@ -625,6 +654,8 @@ class SequencePlacer:
             "bend": packed[i3],
             "gap": packed[i4:i4 + g_len],
         }
+        # The combo head (trained on the next object's new-combo flag) decides the next one.
+        item.next_combo_logit = float(packed[i4 + g_len])
         if "form" in raw:
             out["form"] = raw["form"][0, -1].float().cpu().numpy()
 
@@ -646,15 +677,19 @@ class SequencePlacer:
         choice.hitsound = sum(bit for bit, p in zip(HITSOUND_BITS.values(), hit_p)
                               if rng.random() < p)
         if item.kind == "slider":
-            if "form" in out:
+            # The chord and bend (calibrated on ranked maps) are always drawn: they are the
+            # fallback when a predicted path does not fit the playfield. v3's path head is a
+            # plain regression -- left and right bends average out to nearly straight -- so
+            # the app keeps the calibrated shape until the head is trained on shape classes;
+            # without the crutches (measurements) the head is used.
+            chord = sample_mixture(out["chord"], rng, self.temperature)
+            choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
+                                        float(rows[i, LEN]), self._bend_rng(item))
+                            if self.use_crutches else (float(chord[0]), float(chord[1])))
+            bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
+            choice.side = 1.0 if rng.random() < bend_p else -1.0
+            if "form" in out and not self.use_crutches:
                 choice.path = np.clip(out["form"], -1.5, 1.5).reshape(-1, 2)
-            else:
-                chord = sample_mixture(out["chord"], rng, self.temperature)
-                choice.chord = (human_chord((float(chord[0]), float(chord[1])), self.stars,
-                                            float(rows[i, LEN]), self._bend_rng(item))
-                                if self.use_crutches else (float(chord[0]), float(chord[1])))
-                bend_p = 1.0 / (1.0 + math.exp(-float(out["bend"])))
-                choice.side = 1.0 if rng.random() < bend_p else -1.0
         choices.append(choice)
         walker.place(rows, i, item, choice, scale)
         return out, rows

@@ -14,10 +14,16 @@ from .audio import FPS
 from .critic import CriticNet, evaluate_critic, roc_auc_score_np, save_critic
 from .critic_data import CRITIC_FEATURES, CRITIC_WINDOW, critic_features
 from .dataset import is_validation
-from .placement_data import BEAT, T, PlacementMap, build_placement_maps
+from .placement_data import (BEAT, CU, CV, EX, EY, HCOS, HSIN, OU, OV, T, X, Y, PlacementMap,
+                             build_placement_maps)
 from .train import resolve_device
 
-NEGATIVE_TYPES = ("other_song", "time_shift", "other_section")
+NEGATIVE_TYPES = ("other_song", "time_shift", "other_section", "other_placement")
+# Where the map's objects are, and how they move: swapped in from another part of the map for
+# "other_placement" (same audio and rhythm, placement that belongs elsewhere). Without it the
+# model only ever sees a map's own placement and cannot tell placement variants apart, which
+# is what Best-of-N ranking asks of it.
+PLACEMENT_COLUMNS = (X, Y, EX, EY, OU, OV, CU, CV, HCOS, HSIN)
 
 
 class SongFitSampler:
@@ -46,8 +52,17 @@ class SongFitSampler:
             self._energy[path] = section_energy(self._mels[path])
         return self._mels[path], self._energy[path]
 
-    def _example(self, ref, start, offset=0.0, audio_ref=None):
+    def _example(self, ref, start, offset=0.0, audio_ref=None, placement_from=None):
         objects = ref.objects[start:start + self.window]
+        if placement_from is not None:
+            columns = list(PLACEMENT_COLUMNS)
+            if placement_from < 0:  # map too short for a distant window: shuffle instead
+                other = objects[self.rng.permutation(len(objects))]
+            else:
+                other = ref.objects[placement_from:placement_from + len(objects)]
+            objects = objects.copy()
+            n = min(len(objects), len(other))
+            objects[:n, columns] = other[:n, columns]
         audio_ref = audio_ref or ref
         mel, energy = self.mel(audio_ref.mel_path)
         features = critic_features(objects, mel, float(ref.style.get("stars", 4.0)), energy,
@@ -58,14 +73,16 @@ class SongFitSampler:
 
     def batch(self, size=32):
         features, masks, labels, kinds = [], [], [], []
+        negatives = 0
         for i in range(size):
             ref_index = int(self.rng.integers(len(self.maps)))
             ref = self.maps[ref_index]
             max_start = max(len(ref.objects) - self.window, 0)
             start = int(self.rng.integers(max_start + 1))
-            label, kind, audio_ref, offset = 1.0, -1, None, 0.0
+            label, kind, audio_ref, offset, placement_from = 1.0, -1, None, 0.0, None
             if i % 4:
-                kind = (i - 1) % len(NEGATIVE_TYPES)
+                kind = negatives % len(NEGATIVE_TYPES)
+                negatives += 1
                 label = 0.0
                 mel, _ = self.mel(ref.mel_path)
                 if kind == 0:  # Another song with a close BPM.
@@ -77,11 +94,14 @@ class SongFitSampler:
                 elif kind == 1:  # Half-beat or one-beat phase displacement.
                     beat = float(np.median(ref.objects[:, BEAT]))
                     offset = beat * (0.5 if self.rng.random() < 0.5 else 1.0)
-                else:  # Same song, but another musical section.
+                elif kind == 2:  # Same song, but another musical section.
                     seconds = mel.shape[1] / FPS
                     shift = self.rng.uniform(8.0, max(8.1, seconds * 0.6)) if seconds > 16 else 4.0
                     offset = shift * 1000.0
-            x, mask = self._example(ref, start, offset, audio_ref)
+                else:  # Right audio and rhythm, placement from another part of the map.
+                    far = [s for s in range(max_start + 1) if abs(s - start) >= self.window]
+                    placement_from = int(self.rng.choice(far)) if far else -1
+            x, mask = self._example(ref, start, offset, audio_ref, placement_from)
             features.append(x)
             masks.append(mask)
             labels.append([label])

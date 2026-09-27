@@ -527,7 +527,7 @@ def generate(
     if planner_path is not None:
         from .planner import load_planner, plan_song
         planner = load_planner(planner_path, device=inference_device())
-        advice = plan_song(planner, features.mel, timing.beat_length, 4.5)
+        advice = plan_song(planner, features.mel, timing.beat_length, 4.5, timing.offset_ms)
         if style is None:
             suggested = {
                 "jump": max(advice["styles"].get("skillset/jumps", 0.0),
@@ -607,7 +607,8 @@ def generate(
             from .planner import plan_song
             target_stars = (float(DEFAULT_STARS.get(str(name).lower(), 4.5))
                             if isinstance(name, str) else float(name))
-            advice = plan_song(planner, features.mel, timing.beat_length, target_stars)
+            advice = plan_song(planner, features.mel, timing.beat_length, target_stars,
+                               timing.offset_ms)
             section_profile = advice["sections"]
             log(f"  pre-planner for {target_stars:g}★: {len(section_profile)} sections")
         bm = generate_beatmap(

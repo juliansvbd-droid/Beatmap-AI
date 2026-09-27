@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .audio import FPS
 from .planner_data import (PLANNER_FEATURES, SECTION_TYPES, STAR_CLASSES,
                            audio_section_features, build_planner_examples, split_examples)
 from .sequence_data import TAGS
@@ -100,7 +101,8 @@ def _collate(examples, indices, target_device):
         "max_stars": torch.as_tensor([ex.max_stars for ex in batch], device=target_device),
         "styles": torch.as_tensor(np.stack([ex.styles for ex in batch]), device=target_device),
         "styles_known": torch.as_tensor([ex.styles_known for ex in batch], device=target_device),
-        "condition": torch.as_tensor([ex.max_stars for ex in batch], device=target_device),
+        "condition": torch.as_tensor([ex.condition or ex.max_stars for ex in batch],
+                                     device=target_device),
     }
 
 
@@ -257,9 +259,12 @@ def train_planner(data_dirs, tag_files, out_path, tagger_path=None, epochs=30, b
 
 
 @torch.no_grad()
-def plan_song(model: PlannerNet, mel: np.ndarray, beat_length: float, stars: float):
-    """Return variable-length musical sections, local controls and whole-song advice."""
-    features, intensity = audio_section_features(mel, beat_length)
+def plan_song(model: PlannerNet, mel: np.ndarray, beat_length: float, stars: float,
+              offset_ms: float = 0.0):
+    """Return variable-length musical sections, local controls and whole-song advice.
+    ``offset_ms`` is a downbeat, so that sections start on bar lines as in training."""
+    features, intensity, starts = audio_section_features(mel, beat_length, offset_ms=offset_ms)
+    song_ms = mel.shape[1] * 1000.0 / FPS
     device = next(model.parameters()).device
     x = torch.as_tensor(features[None], dtype=torch.float32, device=device)
     condition = torch.as_tensor([stars], dtype=torch.float32, device=device)
@@ -268,13 +273,13 @@ def plan_song(model: PlannerNet, mel: np.ndarray, beat_length: float, stars: flo
     types = out["type"][0].argmax(-1).cpu().numpy()
     boundaries = torch.sigmoid(out["boundary"][0]).cpu().numpy()
     indices = [0] + [i for i in range(1, len(features)) if boundaries[i] >= 0.55] + [len(features)]
-    chunk_ms = beat_length * 16.0
+    bounds = np.r_[starts, song_ms]
     sections = []
     for a, b in zip(indices, indices[1:]):
         if b <= a:
             continue
         kind = int(np.bincount(types[a:b], minlength=len(SECTION_TYPES)).argmax())
-        sections.append({"start": a * chunk_ms, "end": b * chunk_ms,
+        sections.append({"start": float(bounds[a]), "end": float(bounds[b]),
                          "type": SECTION_TYPES[kind], "intensity": float(np.clip(np.mean(controls[a:b, 0]), 0, 1)),
                          "controls": controls[a:b].mean(axis=0).tolist()})
     star_probs = torch.softmax(out["stars"][0], dim=-1).cpu().numpy()

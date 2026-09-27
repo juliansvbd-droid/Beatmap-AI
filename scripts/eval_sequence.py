@@ -114,7 +114,8 @@ def main() -> None:
             section_profile = None
             if planner is not None:
                 from beatmap_ai.planner import plan_song
-                section_profile = plan_song(planner, features.mel, timing.beat_length, stars)["sections"]
+                section_profile = plan_song(planner, features.mel, timing.beat_length, stars,
+                                            timing.offset_ms)["sections"]
             placer = SequencePlacer(seq, preset, features, timing, {"density": density, "stars": stars},
                                     None, scores, quarter, threshold, rng, args.temperature,
                                     args.rhythm_temperature, guidance=args.guidance,

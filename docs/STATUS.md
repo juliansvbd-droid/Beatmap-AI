@@ -1,10 +1,10 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-27 00:15:14 W. Europe Summer Time, von Codex._
+_Zuletzt aktualisiert: 2026-09-27 03:15:27 W. Europe Summer Time, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **Nachtlauf läuft: Phase D – v3-Haupttraining.** PID 9932, gestartet 2026-09-27 00:15:14 W. Europe Summer Time; Protokoll: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log`.
+- **Nachtlauf läuft: Phase D – v3-Haupttraining.** PID 29160, gestartet 2026-09-27 03:15:27 W. Europe Summer Time; Protokoll: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log`.
 - Prompt-05-Vorprüfung: `pytest -q` ergab 50 bestandene Tests. ROCm-Schrittzeit Planner: 128 =
   0,0106 s (0,59 Mio. Parameter), 256 = 0,0135 s (2,30 Mio.). Tagger-, Planner-,
   Song-Passung- und v3-Smokes bestanden. Windows Update ist bis 2026-09-27 19:50 UTC
@@ -200,7 +200,25 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
 
 ## Code-Review einer Cloud-Sitzung (27.09., nur lesend) – Befunde
-Von Claude Code geprüft: **a) bestätigt.** Rest plausibel, noch nicht einzeln verifiziert.
+**Behoben von Claude Code am 27.09. nachts (während Phase D lief; der Nutzer hat mit Luna
+abgestimmt, dass ein Eingriff unwahrscheinlich ist; wirkt ab Phase E/F/G und in der App):**
+a) Richtung vor dem Modellaufruf eintragen (`_Walker.heading_into`, in `follow`, `sample` und
+`LearnedPlacer.sample`; Test `tests/test_placement_inputs.py`). b) v3-Pfad als glatte Kurve
+**durch** die vorhergesagten Punkte (`placement_model.through_points`, Catmull-Rom als
+Mehrsegment-Bézier) + Drehen/Spiegeln statt Aufgeben (`_Walker._fit_path`). c) Sehne/Biegung
+(kalibriert) wird bei v3 immer mitgezogen (Rückfall); die App (Krücken an) nutzt sie statt des
+gemittelten Formkopfs, nur „ohne Krücken“ (Messung) nutzt den Formkopf – richtige Lösung:
+Formklassen trainieren. d) Combo-Kopf entscheidet neue Combos (`SequencePlacer._decide_combo`,
+lange Pause oder 16 Objekte erzwingen eine). e) Song-Passung lernt zusätzlich „richtige Musik,
+Platzierung aus einem anderen Teil der Map“ (`songfit.NEGATIVE_TYPES`/`PLACEMENT_COLUMNS`).
+f) Vorplanung: ein Beispiel pro Difficulty mit deren Sternen als Bedingung, Abschnitte ab
+Taktanfang (`planner_data.audio_section_features(offset_ms)`, `plan_song(offset_ms)`).
+KV-Cache: ab vollem Fenster volle Neuberechnung (`SequencePlacer.sample`).
+Offen aus dem Review: g) echte Überarbeitung schwacher Abschnitte (`--passes`), Eingabe der
+Vorplanung (nur Mel-Statistik), Best-of-N mit P5–P95-Strafe, und die großen Hebel (v4).
+**Achtung Messung:** Phase D trainiert mit dem alten Code (unverändert, Training betrifft a–d
+nicht); Phase G misst ab jetzt mit den Fixes. v2-Werte von vor dem 27.09. sind mit a) nicht
+mehr direkt vergleichbar – neu messen.
 - **a) Eingabefehler beim Platzieren:** Die aktuelle Zeile hat beim Modellaufruf
   `HCOS/HSIN` = 0/0 (`SequencePlacer._row` setzt sie nicht, `walker.place` erst nach
   `_model_features`, `sequence_model.py` ~599–604; ebenso `sample()` und

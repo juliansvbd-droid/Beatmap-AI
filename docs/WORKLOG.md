@@ -3,6 +3,43 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+
+## 2026-09-27 03:15:27 W. Europe Summer Time – Codex (Prompt 05, v3 fortgesetzt)
+- Der ursprüngliche Supervisor war nach Epoche 29 nicht mehr aktiv; Checkpoint und bester
+  Checkpoint blieben erhalten (zuletzt Epoche 29, bester Validierungsverlust 3,9120 in Epoche 27).
+- Detached Resume-Supervisor PID 29160 gestartet. Phase D läuft erneut mit Deadline 05:15:14
+  und setzt aus sequence-v3.last.pt fort; das Laden des gecachten Trainingsbestands läuft.
+  Danach sind E, F und G bis zum ursprünglichen Gesamtlimit 08:00:14 vorgesehen.
+- Phasenlog: D:\BeatMap-AI-Dataset\night\2026-09-26_220013\phase-D.log;
+  Resume-Log: D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log.
+  Kein Modell wird automatisch in der App aktiviert.
+
+## 2026-09-27 ~03:30 – Claude Code (Opus 5.5, Fixes aus dem Cloud-Code-Review)
+- Auf Nutzerwunsch alle bestätigten Review-Befunde behoben, während Phase D (v3) läuft; nur CPU
+  benutzt (Tests mit ausgeblendeter GPU). Details und offene Punkte in STATUS
+  („Code-Review … – Befunde“): a) Richtung als Modelleingabe, b) v3-Sliderpfad durch die
+  Punkte + Ausweichen, c) kalibrierter Rückfall für v3-Slider, d) Combo-Kopf statt Taktregel,
+  e) Song-Passung mit Platzierungs-Negativen, f) Vorplanung pro Difficulty + taktgenaue
+  Abschnitte, KV-Cache ab vollem Fenster.
+- Neu: `tests/test_placement_inputs.py`, `Start BeatMap AI (nur CPU).bat` (App ohne GPU, zum
+  Testen während eines Trainings).
+- Nach dem Nachtlauf: v2 und v3 mit den Fixes neu messen, dann stern-gleicher Blindtest.
+- Getestet: gezielte Tests (Platzierung, Critic, Nachtlauf-Features, neue Tests: 17 grün) und
+  ein Planner-Datenweg-Smoke auf synthetischen Maps. Die volle Suite auf der CPU habe ich
+  abgebrochen (s. u.), sie ist noch nicht vollständig gelaufen.
+- **Fehler von mir:** Mein CPU-Testlauf ab 02:38 hat Phase D stark ausgebremst (Epochen 1,7 →
+  4,6 min) und sehr wahrscheinlich zum Abbruch nach Epoche 29 (02:55) geführt. Ein Rettungs-
+  Supervisor (anderer Agent) hat um 03:15 ab `sequence-v3.last.pt` (Epoche 29, bestes Val
+  3,912) fortgesetzt; Zeitlimit bleibt 05:15. Ich habe den Testlauf um 03:21 beendet.
+  Lehre: auch reine CPU-Tests mit PyTorch neben einem Training vermeiden (RAM/CPU).
+- Info: Weil Phase C (Probelauf) im Zeitlimit hing, trainiert v3 in der kleinen Variante
+  (hidden 384, 6 Schichten, Kontext 192, 11,26 Mio. Parameter), nicht ~26 Mio.
+
+## 2026-09-26 22:00:14 W. Europe Summer Time – Codex (Prompt 05, Nachtlauf gestartet)
+- Code und Tests wurden vor dem Start abgeschlossen; der detached Lauf läuft nacheinander durch Phasen A–G.
+- Aktueller Laufordner: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013`; Supervisor-PID 9932; Hauptlog `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log`.
+- Kein Modell wird automatisch nach `beatmap_ai/models/` übernommen. Phasen D erhält Vorrang; die Messphase G bleibt bis zu 60 Minuten reserviert.
+
 ## 2026-09-26 21:58 – Codex (Prompt 05: Umsetzung und Vorprüfung)
 - Prompts 03 → 04 → 02 als fortsetzbaren, nacheinander laufenden Nacht-Workflow vorbereitet:
   `scripts/night_run.py`, `scripts/night_phase.py` und `night_run.bat`. Trainings- und
@@ -17,9 +54,9 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
   Songfit- und v3-Smokes bestanden; Planner: 0,59 Mio. Parameter/0,0106 s pro Schritt (128),
   2,30 Mio./0,0135 s (256). Phase-G-Bericht gegen 18 echte Vergleichs-Maps geprüft; die
   Tabelle enthält nun die P95-Ausreißer und Musterabweichung je Sternstufe und Map.
-- Windows Update bis 2026-09-27 19:50 UTC pausiert. Der Nachtlauf ist vorbereitet, aber noch
-  nicht gestartet; direkt nach Commit/Push als verdeckter Supervisor fortsetzen. Kein Modell
-  wurde in die App übernommen.
+- Windows Update bis 2026-09-27 19:50 UTC pausiert. Commit `2061372` wurde gepusht; der
+  verdeckte Supervisor startete um 22:00 Uhr in Phase A (siehe gestarteten Eintrag direkt
+  darüber). Kein Modell wurde in die App übernommen.
 
 ## 2026-09-26 17:52 – Codex (Prompt sol-01: Muster-Messungen)
 - `beatmap_ai/patterns.py`: torch-freie Messungen für Rhythmusgruppen, geometrische Sprungfolgen,

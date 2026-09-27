@@ -144,8 +144,12 @@ def test_songfit_sampler_builds_each_negative_type(tmp_path):
         maps.append(PlacementMap(f"map-{map_index}", song, mel_path, 4.0,
                                  {"stars": 4.0}, objects))
 
-    batch = SongFitSampler(maps, seed=7).batch(size=4)
-    assert batch["negative_type"].tolist() == [-1, 0, 1, 2]
-    assert batch["label"].ravel().tolist() == [1.0, 0.0, 0.0, 0.0]
-    assert batch["x"].shape[0] == 4
+    batch = SongFitSampler(maps, seed=7).batch(size=5)
+    assert batch["negative_type"].tolist() == [-1, 0, 1, 2, -1]
+    assert batch["label"].ravel().tolist() == [1.0, 0.0, 0.0, 0.0, 1.0]
+    assert batch["x"].shape[0] == 5
+    more = SongFitSampler(maps, seed=7).batch(size=8)
+    assert more["negative_type"].tolist() == [-1, 0, 1, 2, -1, 3, 0, 1]
+    # "other_placement" keeps timing/audio but not the positions of its window
+    assert np.isfinite(more["x"]).all()
     assert np.isfinite(batch["x"]).all()
