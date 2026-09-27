@@ -153,3 +153,27 @@ def test_songfit_sampler_builds_each_negative_type(tmp_path):
     # "other_placement" keeps timing/audio but not the positions of its window
     assert np.isfinite(more["x"]).all()
     assert np.isfinite(batch["x"]).all()
+
+
+def test_night_status_completion_accepts_windows_paths(tmp_path, monkeypatch):
+    from scripts import night_run
+
+    monkeypatch.setattr(night_run, "REPO", tmp_path)
+    status = tmp_path / "docs" / "STATUS.md"
+    status.parent.mkdir()
+    status.write_text(
+        "# Projektstand BeatMap-AI\n\n"
+        "_Zuletzt aktualisiert: vorher._\n\n"
+        "## Currently running / in progress\n"
+        "- **Nachtlauf läuft: Phase G – Messung.**\n\n"
+        "## Weitere Infos\n",
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "night" / "run"
+    summary = r"Nachtlauf beendet; Protokoll: D:\BeatMap-AI-Dataset\night\run\night_run.log"
+
+    night_run._update_status(run_dir, None, summary)
+
+    updated = status.read_text(encoding="utf-8")
+    assert "Kein BeatMap-AI-Job läuft" in updated
+    assert r"D:\BeatMap-AI-Dataset\night\run\night_run.log" in updated

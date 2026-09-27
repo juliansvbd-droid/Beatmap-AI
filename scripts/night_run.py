@@ -59,7 +59,7 @@ def _update_status(run_dir: Path, phase: str | None, summary: str | None = None)
                    f"{os.getpid()}, gestartet {_timestamp()}; Protokoll: `{run_dir / 'night_run.log'}`.")
         old_clause = re.compile(r"- Keine laufenden BeatMap-AI-Mess- oder Trainingsjobs\.")
         if old_clause.search(body):
-            body = old_clause.sub(details, body, count=1)
+            body = old_clause.sub(lambda _: details, body, count=1)
         else:
             body = re.sub(r"(?m)^- \*\*Nachtlauf läuft:.*$\n?", "", body)
             body = "\n" + details + body
@@ -67,7 +67,7 @@ def _update_status(run_dir: Path, phase: str | None, summary: str | None = None)
         details = f"- **Kein BeatMap-AI-Job läuft.** {summary or 'Nachtlauf beendet.'}"
         old_clause = re.compile(r"(?m)^- \*\*Nachtlauf läuft:.*$")
         if old_clause.search(body):
-            body = old_clause.sub(details, body, count=1)
+            body = old_clause.sub(lambda _: details, body, count=1)
         else:
             body = "\n" + details + body
     text = text[:body_start] + body + text[body_end:]

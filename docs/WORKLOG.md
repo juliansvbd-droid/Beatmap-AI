@@ -3,6 +3,14 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-27 15:52 W. Europe Summer Time – Codex (Prompt 05 abgeschlossen, Teilergebnisse)
+- Geprüft: Nachtlauf PID 29160 ist beendet; kein Python-/PyTorch-Trainingsprozess läuft.
+- Phasen A/B/C erreichten jeweils ihr 45-Minuten-Limit während Einlesen/Vorbereiten des Datensatzes. Phase D wurde ab Epoche 29 fortgesetzt und endete nach 97/1000 Epochen; bester Checkpoint Epoche 93 mit Validierungsverlust 2,7839. Inferenz-Checkpoint `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\sequence-v3.pt` (45.075.614 Bytes, 11,26 Mio. Parameter); Resume-Checkpoint `sequence-v3.last.pt` (Epoche 97). App-Modelldatei blieb unangetastet.
+- Phase E nutzte 52,5 Minuten für Datensatzaufbereitung und erreichte kein Training. Der Vergleich der Planner-Größen 128/256 auf Validierungssongs wurde nicht durchgeführt; frühere Smokes maßen lediglich 0,59/2,30 Mio. Parameter und 0,0106/0,0135 Sekunden pro ROCm-Schritt.
+- Phase F trainierte Song-Passung bis Epoche 78; bester Validierungs-AUC 0,9557 in Epoche 56. `songfit.best.pt` und `songfit.pt` liegen auf D:. Phase-G-Berichte erzeugt und zwei Insane-Blindtest-Maps geschrieben; ALQUIMIA v3 hat noch 60,704 P95-Ausreißer/100 Objekte (49,560 schnelle scharfe Wendungen), GUERREIRO 8,844. v2/v3-Auswertungen liefen ins Zeitlimit, Planner-Auswertung mangels Checkpoint übersprungen; ein Gesamtsieger ist nicht belegt.
+- Beim automatischen Abschlussstatus trat `re.error: bad escape \\B` auf. `scripts/night_run.py` ersetzt jetzt dynamische Statuszeilen per Callback statt als Regex-Ersetzungstext; Regressionstest ergänzt. Prüfung: `pytest -q tests/test_night_features.py` → 8 passed (2,54 s).
+- `docs/STATUS.md` aktualisiert; Lauf- und Messartefakte vollständig unter `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`. Defaults bleiben 1 Durchgang, v2-Platzierung und v3 nur per Option. Offen: Phase E Training 128/256, Phase-G-Validierung vollständig nachholen, P95-Ausreißer insbesondere ALQUIMIA prüfen und v3 erst nach Vergleich bewerten. Kein Modell wurde in die App kopiert.
+
 
 ## 2026-09-27 03:15:27 W. Europe Summer Time – Codex (Prompt 05, v3 fortgesetzt)
 - Der ursprüngliche Supervisor war nach Epoche 29 nicht mehr aktiv; Checkpoint und bester

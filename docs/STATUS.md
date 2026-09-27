@@ -1,10 +1,14 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-27 03:15:27 W. Europe Summer Time, von Codex._
+_Zuletzt aktualisiert: 2026-09-27 15:56:28 W. Europe Summer Time, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **Nachtlauf läuft: Phase D – v3-Haupttraining.** PID 29160, gestartet 2026-09-27 03:15:27 W. Europe Summer Time; Protokoll: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\night_run.log`.
+- **Kein BeatMap-AI-Job läuft.** Nachtlauf am 27.09.2026 um 07:58:45 beendet; kein Python-/PyTorch-Prozess aktiv. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
+- Prompt 05 nur teilweise abgeschlossen: Phasen A/B/C liefen jeweils ins 45-Minuten-Limit, während der Datensatz eingelesen/vorbereitet wurde. Phase D trainierte v3 bis Epoche 97/1000; bester gespeicherter Checkpoint Epoche 93, Validierungsverlust 2,7839 (11,26 Mio. Parameter; 45,1 MB). `sequence-v3.pt` liegt ausschließlich im Nachtlaufordner; in der App bleibt v2 aktiv.
+- Phase E erreichte nach 52,5 Minuten Datensatzaufbereitung noch kein Planner-Training. Der angeforderte Validierungslauf 128 vs. 256 und die Auswahl nach Hauptteil/Kiai/Stern-/Abschnittsfehlern fehlen. Phase F trainierte Song-Passung bis Epoche 78; bester AUC-Wert 0,9557 in Epoche 56; Checkpoint ebenfalls nur im Nachtlaufordner.
+- Phase G erstellte zwei Blindtest-Maps und den P95-Bericht. ALQUIMIA Insane v3 liegt weiterhin bei 60,704 P95-Ausreißern/100 Objekte, davon 49,560 schnelle scharfe Wendungen; GUERREIRO Insane v3 bei 8,844 gesamt. Die v2/v3-Folgeauswertungen liefen in ihre Zeitlimits; Planner-Auswertung wurde mangels Checkpoint übersprungen. Kein belastbarer Gesamtsieg von v3 ist damit belegt. Details: `Phase-G-Muster-und-P95.md`, `Phase-G-Messung.md` im Nachtlaufordner.
+- Der automatische Statusabschluss des Supervisors scheiterte an einem Windows-Pfad in einer Regex-Ersetzung. Behoben und mit Regressionstest geprüft; der Lauf und seine Checkpoints waren davon nicht betroffen.
 - Prompt-05-Vorprüfung: `pytest -q` ergab 50 bestandene Tests. ROCm-Schrittzeit Planner: 128 =
   0,0106 s (0,59 Mio. Parameter), 256 = 0,0135 s (2,30 Mio.). Tagger-, Planner-,
   Song-Passung- und v3-Smokes bestanden. Windows Update ist bis 2026-09-27 19:50 UTC
@@ -216,16 +220,13 @@ Taktanfang (`planner_data.audio_section_features(offset_ms)`, `plan_song(offset_
 KV-Cache: ab vollem Fenster volle Neuberechnung (`SequencePlacer.sample`).
 Offen aus dem Review: g) echte Überarbeitung schwacher Abschnitte (`--passes`), Eingabe der
 Vorplanung (nur Mel-Statistik), Best-of-N mit P5–P95-Strafe, und die großen Hebel (v4).
-**Achtung Messung:** Phase D trainiert mit dem alten Code (unverändert, Training betrifft a–d
-nicht); Phase G misst ab jetzt mit den Fixes. v2-Werte von vor dem 27.09. sind mit a) nicht
-mehr direkt vergleichbar – neu messen.
-- **a) Eingabefehler beim Platzieren:** Die aktuelle Zeile hat beim Modellaufruf
-  `HCOS/HSIN` = 0/0 (`SequencePlacer._row` setzt sie nicht, `walker.place` erst nach
-  `_model_features`, `sequence_model.py` ~599–604; ebenso `sample()` und
-  `LearnedPlacer.sample`). Im Training steht dort die echte Richtung (Einheitsvektor).
-  Das Modell sieht so nie seine absolute Richtung → schlechteres Randgefühl, viele
-  Neuversuche. **Fix (eine Zeile) nach dem Nachtlauf, dann A/B v2 und v3 neu messen –
-  die Messphase G des Nachtlaufs misst mit dem Fehler.**
+**Achtung Messung:** Phase D startete vor den Code-Review-Fixes; Phase G nutzte die Fixes.
+Die formalen v2/v3-Auswertungen in G liefen ins Zeitlimit, daher bleibt eine vollständige
+Messung mit dem aktuellen Code offen.
+- **a) Richtungseingabe beim Platzieren:** Claude Code hat den bestätigten Fehler am 27.09.
+  behoben (`_Walker.heading_into` wird vor dem Modellaufruf eingetragen); gezielte Tests
+  einschließlich `tests/test_placement_inputs.py` waren grün. v2 und v3 mit diesem Fix
+  müssen noch vollständig neu verglichen werden.
 - b) v3-Slider: 8 Punkte auf der Kurve werden als Kontrollpunkte einer Bézier geschrieben →
   Kurve kürzer/glatter, Ende stimmt nicht; passt der Pfad nicht, wird still ein Kreis draus.
 - c) v3-Formkopf ist Regression ohne Würfeln → Links/Rechts mitteln sich, S-Kurven fehlen.
@@ -279,11 +280,11 @@ Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
 | 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
-| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **wartet auf Phase F** |
-| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **läuft** |
-| 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **läuft** |
+| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **Checkpoint trainiert (78 Epochen); Auswertung offen** |
+| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **teilweise: 97 Epochen; Vergleich offen** |
+| 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **beendet; Phasen teilweise, siehe Nachtlaufbericht** |
 | 06 | `prompts/06-gesang-rhythmus.md` | Vocal Rhythm Engine des Nutzers nachbauen (CPU), messen wann Mapper dem Gesang folgen | bereit (Luna, parallel zum Nachtlauf) |
-| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **wartet auf Phase E** |
+| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **nicht trainiert; Phase E vor dem Training abgelaufen** |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
 - Python: `.venv-rocm\Scripts\python.exe` (PyTorch 2.9 + ROCm 7.2.1, AMD RX 7700 XT).
