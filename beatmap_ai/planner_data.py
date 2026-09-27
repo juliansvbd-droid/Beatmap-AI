@@ -93,38 +93,25 @@ def _star_targets(maps) -> tuple[np.ndarray, float]:
     return hist, max(values, default=0.0)
 
 
-def _section_labels(maps, starts_ms: np.ndarray, ends_ms: np.ndarray, intensity: np.ndarray,
-                    kiai_maps=None):
-    """Section values of ``maps`` (one difficulty, or the mean over several); the kiai
-    column comes from all ``kiai_maps`` of the song (kiai belongs to the song part)."""
-    controls_per_map = []
-    for m in maps:
-        stars = float(m.style.get("stars", 4.5))
-        values = np.zeros((len(starts_ms), 8), dtype=np.float32)
-        for i, (start, end) in enumerate(zip(starts_ms, ends_ms)):
-            ids = np.flatnonzero((m.objects[:, T] >= start) & (m.objects[:, T] < end))
-            if len(ids):
-                local = section_controls(m.objects, int(ids[0]), len(ids), stars, m.cs)
-                if len(local):
-                    values[i] = local.mean(axis=0)
-        controls_per_map.append(values)
-    controls = np.mean(controls_per_map, axis=0) if controls_per_map else np.zeros((len(starts_ms), 8), np.float32)
-    for m in (kiai_maps or []):
-        if any(m is other for other in maps):
-            continue
-        kiai = np.zeros_like(controls)
-        for i, (start, end) in enumerate(zip(starts_ms, ends_ms)):
-            ids = np.flatnonzero((m.objects[:, T] >= start) & (m.objects[:, T] < end))
-            if len(ids):
-                local = section_controls(m.objects, int(ids[0]), len(ids),
-                                         float(m.style.get("stars", 4.5)), m.cs)
-                if len(local):
-                    kiai[i, 7] = local[:, 7].mean()
-        controls_per_map.append(kiai)
-    controls[:, 7] = np.max([v[:, 7] for v in controls_per_map], axis=0) if controls_per_map else 0.0
+def _chunk_controls(m, starts_ms: np.ndarray, ends_ms: np.ndarray) -> np.ndarray:
+    """One map's section values per chunk: the mean of its objects' local values."""
+    values = np.zeros((len(starts_ms), 8), dtype=np.float32)
+    objects = m.objects
+    if len(objects) < 2:
+        return values
+    per_object = section_controls(objects, 0, len(objects), float(m.style.get("stars", 4.5)), m.cs)
+    times = objects[:, T]
+    lo = np.searchsorted(times, starts_ms, side="left")
+    hi = np.searchsorted(times, ends_ms, side="left")
+    for i, (a, b) in enumerate(zip(lo, hi)):
+        if b > a:
+            values[i] = per_object[a:b].mean(axis=0)
+    return values
 
-    # Coarse human-readable section labels from kiai, intensity, and where shifts occur.
-    kind = np.ones(len(starts_ms), dtype=np.int64)  # verse by default
+
+def _section_labels(controls: np.ndarray, intensity: np.ndarray):
+    """Coarse section types and boundaries from section values, kiai and intensity."""
+    kind = np.ones(len(controls), dtype=np.int64)  # verse by default
     if len(kind):
         kind[0] = 0
         kind[-1] = 5
@@ -135,12 +122,12 @@ def _section_labels(maps, starts_ms: np.ndarray, ends_ms: np.ndarray, intensity:
         kind[controls[:, 7] >= 0.5] = 3
         middle = (intensity < np.median(intensity)) & (np.arange(len(kind)) > 0) & (np.arange(len(kind)) < len(kind) - 1)
         kind[middle & (controls[:, 7] < 0.5)] = 4
-    boundary = np.zeros(len(starts_ms), dtype=np.float32)
+    boundary = np.zeros(len(controls), dtype=np.float32)
     if len(boundary) > 1:
         delta = np.abs(np.diff(controls, axis=0)).mean(axis=1)
         level_delta = np.abs(np.diff(intensity))
         boundary[1:] = ((delta > 0.15) | (level_delta > max(float(np.std(level_delta)), 0.1))).astype(np.float32)
-    return controls, kind, boundary
+    return kind, boundary
 
 
 def build_planner_examples(data_dirs, tag_files=(), tagger_path=None, log=print) -> list[PlannerExample]:
@@ -166,8 +153,11 @@ def build_planner_examples(data_dirs, tag_files=(), tagger_path=None, log=print)
         ends = np.r_[starts[1:], np.inf].astype(np.float32)
         stars, maximum = _star_targets(song_maps)
         style_values, styles_known = _style_targets(song_maps)
-        for m in song_maps:
-            controls, kinds, boundaries = _section_labels([m], starts, ends, intensity, song_maps)
+        per_map = [_chunk_controls(m, starts, ends) for m in song_maps]
+        kiai = np.max([values[:, 7] for values in per_map], axis=0)  # kiai: part of the song
+        for m, controls in zip(song_maps, per_map):
+            controls[:, 7] = kiai
+            kinds, boundaries = _section_labels(controls, intensity)
             examples.append(PlannerExample(song, features, controls, kinds, boundaries, stars,
                                            style_values, styles_known, maximum,
                                            float(m.style.get("stars", maximum))))

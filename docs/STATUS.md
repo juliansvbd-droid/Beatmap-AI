@@ -203,6 +203,24 @@ Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
 
+## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
+- **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein
+  ±16-Beat-Fenster in Python – **3 s pro v3-Trainingsbatch** (32 Fenster, Kontext 192), v3 hat
+  also meist auf Daten gewartet; auch die Vorplanungs-Daten (Phase E) kamen dadurch nicht
+  durch. Jetzt vektorisiert: **7 ms pro Batch**, Werte identisch (max. Abweichung 6e-8,
+  Test `tests/test_section_controls.py` gegen die alte Version `_section_controls_reference`).
+  (2) Der Objekt-Cache für D: (`D:\BeatMap-AI-Dataset\.beatmap_ai_cache\placement-v3.pkl`,
+  5 GB) war erst um 01:38 fertig; er ist jetzt vorhanden, Laden ~2 min.
+- Vorplanungs-Daten: jede Map einmal (`planner_data._chunk_controls`), Kiai als Maximum über
+  die Difficulties. Kompletter Aufbau echter Daten: **6,5 min** (59.699 Difficulties,
+  13.375 Songs; vorher > 50 min ohne Ende).
+- **Tagger trainiert:** `D:\BeatMap-AI-Dataset\prepared\tagger.pt` (+ `.best.pt`), val AUC
+  0,78, bei 1–4★ 0,63; Training 5 s + 2 min Laden. Vorher lernte er nichts (Verlust NaN):
+  `tagger_features` bildete Mittelwerte leerer Abschnitte und reichte fehlende Sterne als NaN
+  durch – behoben (`_mean`, `nan_to_num`).
+- Nächster Nachtlauf kann Phasen A–C fast überspringen (Cache + Tagger liegen bereit) und
+  v3 groß (~26 Mio.) mit der vollen Zeit trainieren.
+
 ## Nachmessung der Review-Fixes (27.09. vormittags, Claude Code) – wichtig
 5 Songs (GUERREIRO, ALQUIMIA, S0N6F0RMYD34TH, LOUCURA LETAL, AKAI) × Normal/Insane/Expert,
 Code von gestern (d4d0968) gegen heute, gemessen mit `pattern_stats.py` und

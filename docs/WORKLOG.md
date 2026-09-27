@@ -4,6 +4,14 @@ Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
 
+
+## 2026-09-27 mittags – Claude Code (Opus 5.5, Datenvorbereitung)
+- `section_controls` vektorisiert (3 s → 7 ms pro v3-Batch, identische Werte, Test), Vorplanungs-
+  Daten beschleunigt (6,5 min für alle 59.699 Difficulties), Tagger-NaN behoben und Tagger
+  trainiert (`D:\BeatMap-AI-Dataset\prepared\tagger.pt`, AUC 0,78). 59 Tests grün.
+- Offen für den nächsten Nachtlauf: `scripts/night_phase.py` auf den fertigen Tagger zeigen
+  lassen, A–C kurz halten, v3 groß trainieren, danach stern-gleicher Blindtest.
+
 ## 2026-09-27 vormittags – Claude Code (Opus 5.5, Nachmessung nach dem Nachtlauf)
 - Volle Suite auf der GPU: 58 grün.
 - Gestern vs. heute auf 5 Songs × 3 Diffs gemessen (Details in STATUS „Nachmessung …“):

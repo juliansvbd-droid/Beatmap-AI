@@ -179,7 +179,86 @@ V3_FEATURES = FEATURES + SECTION_CONTROLS
 
 def section_controls(objects: np.ndarray, start: int, count: int, stars: float,
                      cs: float = 4.0) -> np.ndarray:
-    """Human local section targets over a centered eight-bar window per object."""
+    """Human local section targets over a centered eight-bar window per object.
+
+    Vectorised: per-move quantities are computed once for the whole map and summed over
+    each window with prefix sums (same values as _section_controls_reference, which looped
+    in Python per object and window and took hours over the data set)."""
+    output = np.zeros((count, SECTION_CONTROLS), dtype=np.float32)
+    n = len(objects)
+    if n < 2 or count <= 0:
+        return output
+    times = objects[:, T].astype(np.float64)
+    mean_density = n / max((times[-1] - times[0]) / 1000.0, 1.0)
+    star_group = "<3" if stars < 3 else "3-4.5" if stars < 4.5 else "4.5-6" if stars < 6 else "6+"
+    limit = _PATTERN_REFERENCE.get("features", {}).get(star_group, {})
+    sharp_limit = float(limit.get("sharp_turn_speed", {}).get("p95", 0.85))
+    cross_limit = float(limit.get("cross_screen_fraction", {}).get("p95", 0.33))
+    radius = max(64.0 - 4.48 * (float(cs) - 4.0), 20.0)
+    diagonal = math.hypot(512.0, 384.0)
+
+    # Move j (into object j, j >= 1): distance from the previous end, stream/cross flags.
+    dx = np.zeros(n)
+    dy = np.zeros(n)
+    dx[1:] = objects[1:, X].astype(np.float64) - objects[:-1, EX]
+    dy[1:] = objects[1:, Y].astype(np.float64) - objects[:-1, EY]
+    dist = np.hypot(dx, dy)
+    beats = objects[:, BEAT].astype(np.float64)
+    stream = (dist / np.maximum(beats, 1.0) <= 0.5).astype(np.float64)
+    cross = (dist / diagonal > cross_limit).astype(np.float64)
+    stream[0] = cross[0] = dist[0] = 0.0
+    # Turn at object j (j >= 2): between move j-1 and move j, both longer than 5 px.
+    valid = np.zeros(n, dtype=bool)
+    sharp = np.zeros(n)
+    fast = np.zeros(n)
+    if n >= 3:
+        n1, n2 = dist[1:-1], dist[2:]
+        ok = (n1 > 5) & (n2 > 5)
+        cos = (dx[1:-1] * dx[2:] + dy[1:-1] * dy[2:]) / np.maximum(n1 * n2, 1e-12)
+        turn = np.degrees(np.arccos(np.clip(cos, -1, 1)))
+        is_sharp = turn > 120.0
+        bpm = 60000.0 / np.maximum(beats[2:], 1.0)
+        valid[2:] = ok
+        sharp[2:] = np.where(ok, is_sharp, 0.0)
+        fast[2:] = np.where(ok, is_sharp & (turn / 180.0 * bpm / 180.0 > sharp_limit), 0.0)
+
+    def prefix(values):
+        return np.concatenate([[0.0], np.cumsum(values, dtype=np.float64)])
+
+    c_dist, c_stream, c_cross = prefix(dist), prefix(stream), prefix(cross)
+    c_valid, c_sharp, c_fast = prefix(valid), prefix(sharp), prefix(fast)
+    c_slider = prefix(objects[:, KIND] == SLIDER)
+    c_kiai = prefix(objects[:, KIAI] > 0.5)
+
+    index = np.arange(start, min(start + count, n))
+    beat = np.maximum(beats[index], 1.0)
+    lo = np.searchsorted(times, times[index] - 16.0 * beat, side="left")
+    hi = np.searchsorted(times, times[index] + 16.0 * beat, side="right")
+    local = hi - lo
+    span = np.maximum((times[hi - 1] - times[lo]) / 1000.0, beat / 1000.0)
+    density = local / span
+    a = np.maximum(lo + 1, 1)
+    steps = np.maximum(hi - a, 0)
+    turns = c_valid[hi] - c_valid[a]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean_distance = np.where(steps > 0, (c_dist[hi] - c_dist[a]) / steps, 0.0)
+        values = np.stack([
+            np.clip(np.log1p(density) / max(math.log1p(max(mean_density, 1.0)), 1e-4), 0, 2) / 2,
+            np.clip(mean_distance / max(radius * 5.0, 1.0), 0, 2) / 2,
+            np.where(steps > 0, (c_stream[hi] - c_stream[a]) / steps, 0.0),
+            (c_slider[hi] - c_slider[lo]) / local,
+            np.where(turns > 0, (c_sharp[hi] - c_sharp[a]) / turns, 0.0),
+            np.where(turns > 0, (c_fast[hi] - c_fast[a]) / turns, 0.0),
+            np.where(steps > 0, (c_cross[hi] - c_cross[a]) / steps, 0.0),
+            (c_kiai[hi] - c_kiai[lo]) / local,
+        ], axis=1)
+    output[:len(index)] = values
+    return output
+
+
+def _section_controls_reference(objects: np.ndarray, start: int, count: int, stars: float,
+                     cs: float = 4.0) -> np.ndarray:
+    """Loop version of section_controls, kept as the reference its tests compare to."""
     output = np.zeros((count, SECTION_CONTROLS), dtype=np.float32)
     if len(objects) < 2 or count <= 0:
         return output

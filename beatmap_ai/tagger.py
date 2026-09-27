@@ -20,8 +20,14 @@ from .style import star_rating
 TAGGER_FEATURES = 64
 
 
+def _mean(values) -> float:
+    """Mean that is 0 for an empty selection (a NaN would poison the whole training)."""
+    return float(np.mean(values)) if len(values) else 0.0
+
+
 def tagger_features(objects: np.ndarray, stars: float, cs: float = 4.0) -> np.ndarray:
     """Compact whole-map summary with eight local sections and global context."""
+    stars = float(stars) if np.isfinite(stars) else 4.0
     n = len(objects)
     if n == 0:
         return np.zeros(TAGGER_FEATURES, dtype=np.float32)
@@ -55,12 +61,13 @@ def tagger_features(objects: np.ndarray, stars: float, cs: float = 4.0) -> np.nd
             continue
         lo, hi = ids[0], ids[-1] + 1
         local[k, 0] = np.log1p(len(ids) / max((times[hi - 1] - times[lo]) / 1000.0, 0.5)) / 4.0
-        local[k, 1] = float(np.mean(distances[max(lo - 1, 0):max(hi - 1, 0)]) / 400.0) if hi > lo else 0.0
-        local[k, 2] = float(np.mean(objects[lo:hi, KIND] == SLIDER))
-        local[k, 3] = float(np.mean(turns[max(lo - 1, 0):max(hi - 2, 0)])) if hi - lo > 2 else 0.0
-        local[k, 4] = float(np.mean(gaps[max(lo - 1, 0):max(hi - 1, 0)] <= 0.5)) if hi - lo > 1 else 0.0
-        local[k, 5] = float(np.mean(distances[max(lo - 1, 0):max(hi - 1, 0)] > 0.7 * 640.0)) if hi - lo > 1 else 0.0
-    return np.concatenate([global_values, local.ravel()]).astype(np.float32)
+        local[k, 1] = _mean(distances[max(lo - 1, 0):max(hi - 1, 0)]) / 400.0
+        local[k, 2] = _mean(objects[lo:hi, KIND] == SLIDER)
+        local[k, 3] = _mean(turns[max(lo - 1, 0):max(hi - 2, 0)])
+        local[k, 4] = _mean(gaps[max(lo - 1, 0):max(hi - 1, 0)] <= 0.5)
+        local[k, 5] = _mean(distances[max(lo - 1, 0):max(hi - 1, 0)] > 0.7 * 640.0)
+    features = np.concatenate([global_values, local.ravel()]).astype(np.float32)
+    return np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
 
 class TaggerNet(nn.Module):
@@ -116,9 +123,9 @@ def train_tagger(data_dirs, tag_files, out_path, epochs=24, batch_size=256, lr=5
     if not train or not val:
         raise ValueError("tagger requires tagged maps in both train and validation splits")
     x_train = np.stack([tagger_features(m.objects, float(m.style.get("stars", 4.0)), m.cs) for m in train])
-    y_train = np.stack([m.tags[:-1] for m in train])
+    y_train = np.nan_to_num(np.stack([m.tags[:-1] for m in train]).astype(np.float32))
     x_val = np.stack([tagger_features(m.objects, float(m.style.get("stars", 4.0)), m.cs) for m in val])
-    y_val = np.stack([m.tags[:-1] for m in val])
+    y_val = np.nan_to_num(np.stack([m.tags[:-1] for m in val]).astype(np.float32))
     low_star = np.asarray([float(m.style.get("stars", 99.0)) < 4.0 for m in val])
     rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
