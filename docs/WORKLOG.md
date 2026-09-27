@@ -17,7 +17,7 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
   Erkennung ist getestet, nicht die Installation** (kein NVIDIA-PC, kein frischer PC).
   „Start BeatMap AI.bat“ nimmt die erste vorhandene Umgebung.
 - Tageslauf `scripts/day_run.py`: v3 groß (26,1 Mio.) 3 h ab 19:15, danach Vorplanung;
-  Ausgabe `D:\BeatMap-AI-Dataset\day6-09-27`. ~70 s pro 500 Schritte.
+  Ausgabe `D:/BeatMap-AI-Dataset/day/2026-09-27`. ~70 s pro 500 Schritte.
 - Volle Tests für die Geräte-Änderung nach dem Training (während eines Trainings keine).
 
 ## 2026-09-27 mittags – Claude Code (Opus 5.5, Datenvorbereitung)
