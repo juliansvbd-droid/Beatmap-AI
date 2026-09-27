@@ -6,6 +6,14 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 
 
 
+## 2026-09-27 abends – Claude Code (Cloud-Sitzung, Einschätzung Mapperatorinator)
+- Nutzerfrage: „Hat meine KI eine Chance, Mapperatorinator zu schlagen?“ Nur gelesen und
+  recherchiert (Mapperatorinator-README/Configs, HF-Datensatz), kein Code geändert, keine
+  GPU. Ergebnis und Reihenfolge der Hebel in STATUS („Einschätzung …“ unter „Vergleich mit
+  Mapperatorinator“). Kernpunkt: im Blindtest auf osu!standard realistisch; zuerst die
+  P95-Ausreißer beim Platzieren abfangen, dann ein fairer Blindtest gegen V32 **mit `year`**.
+- Offen: festhalten, welche Mapperatorinator-Version/Einstellungen lokal benutzt wurden.
+
 ## 2026-09-27 abends – Claude Code (Opus 5.5, Geräte-Optionen + Tageslauf)
 - App: „Rechnen auf: Automatisch / Grafikkarte (NVIDIA oder AMD) / Nur Prozessor (CPU)“
   (`--device auto|gpu|cpu`, `generator.DEVICE_PREFERENCE`, `device_summary`) und Anzeige der

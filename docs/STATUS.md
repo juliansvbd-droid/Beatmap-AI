@@ -1,6 +1,6 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-27 15:56:28 W. Europe Summer Time, von Codex._
+_Zuletzt aktualisiert: 2026-09-27 abends, von Claude Code (Cloud, Einschätzung Mapperatorinator)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
@@ -202,6 +202,26 @@ mit Variation nach Songteilen, nicht stumpf – `pattern_stats.py`: `stale_repea
 Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (heute + v3)
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
+**Einschätzung „Chance gegen Mapperatorinator?“ (27.09. abends, Cloud-Sitzung, nur lesend):**
+- Stand Mapperatorinator (GitHub-README): **V32** ist das beste Modell (Whisper-artig, 219 Mio.,
+  16,4-s-Fenster mit 4 s Rückblick / 3,3 s Audio-Vorschau, Positionen 32-px-Raster + V32-
+  Feinkorrektur auf 2 px, Diffusion für Positionen; Standard-Trainingsdaten 213.068 ranked/loved
+  Maps aller Modi, 46.386 Songs, 2007–2025). README: **immer `year` angeben**, sonst wird der Stil
+  uneinheitlich. Nicht notiert ist, welche Version und welche Einstellungen unser Blindtest
+  lokal benutzt hat. Unser Vorteil „konsistenter pro Song“ kann ohne `year` teilweise ein
+  Einstellungsfehler sein → im nächsten Blindtest V32 mit `year` (+ ggf. descriptors) laufen lassen
+  und die Version festhalten.
+- Urteil: das Framework insgesamt (4 Modi, Timing mit BPM-Wechseln, SV, Hitsounds, Mapper-Stil)
+  schlagen wir nicht. **Spielbare osu!standard-Maps im Blindtest: realistisch**, weil der Rhythmus
+  schon gleichauf ist und die Lücke messbar ist (P95-Ausreißer, s. Prompt 03). Unsere Hebel:
+  ~20–28× schneller (3,4 s statt 65–95 s pro Difficulty → Best-of-N im selben Zeitbudget),
+  Sterne genau (rosu-pp-Suche), ganzer Song im Blick (Refrain-Kopien/Vorplanung), Rhythmus vor
+  der Platzierung bekannt (noch nicht genutzt: bidirektionaler Leser).
+- Reihenfolge: (1) P5–P95-Grenze beim Platzieren (Neu-Würfeln/Strafe im Best-of-N, nicht der
+  Critic, der Audio kaum nutzt), (2) Best-of-N mit Modell-Wahrscheinlichkeit + P95-Strafe,
+  (3) stern-gleicher Blindtest 10 Songs × 3 Diffs gegen V32 mit `year`; Sieg erst ab
+  **20/30** gewonnenen Paaren belastbar (p < 0,05), (4) mehr Daten (Katalog 38.048 Sets, wir
+  nutzen ~13.400), (5) v3 mit Blick auf den kommenden Rhythmus.
 
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein
