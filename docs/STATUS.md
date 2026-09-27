@@ -199,6 +199,38 @@ Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
 
+## Code-Review einer Cloud-Sitzung (27.09., nur lesend) – Befunde
+Von Claude Code geprüft: **a) bestätigt.** Rest plausibel, noch nicht einzeln verifiziert.
+- **a) Eingabefehler beim Platzieren:** Die aktuelle Zeile hat beim Modellaufruf
+  `HCOS/HSIN` = 0/0 (`SequencePlacer._row` setzt sie nicht, `walker.place` erst nach
+  `_model_features`, `sequence_model.py` ~599–604; ebenso `sample()` und
+  `LearnedPlacer.sample`). Im Training steht dort die echte Richtung (Einheitsvektor).
+  Das Modell sieht so nie seine absolute Richtung → schlechteres Randgefühl, viele
+  Neuversuche. **Fix (eine Zeile) nach dem Nachtlauf, dann A/B v2 und v3 neu messen –
+  die Messphase G des Nachtlaufs misst mit dem Fehler.**
+- b) v3-Slider: 8 Punkte auf der Kurve werden als Kontrollpunkte einer Bézier geschrieben →
+  Kurve kürzer/glatter, Ende stimmt nicht; passt der Pfad nicht, wird still ein Kreis draus.
+- c) v3-Formkopf ist Regression ohne Würfeln → Links/Rechts mitteln sich, S-Kurven fehlen.
+  Vorschlag: Formklassen (64–256) vorhersagen und würfeln (auch gut für Konsistenz).
+- d) Trainierter Combo-Kopf wird in `follow` nicht benutzt; Combos per Taktregel
+  (`generator.assign_combos`) – dort die gemessenen Combo-Probleme.
+- e) Song-Passungs-KI lernt „gleiche Map, falsches Audio“ → ignoriert Positionen, taugt
+  nicht fürs Best-of-N der Platzierung (nur für Rhythmus-Varianten).
+- f) Vorplanungs-KI: trainiert mit Set-Höchststernen, abgefragt mit Ziel-Sternen;
+  4-Takt-Blöcke ab 0 ms statt Downbeat; Eingabe nur Mel-Mittel/Streuung.
+- g) `--passes` = nur mehr Kandidaten, keine echte Überarbeitung schwacher Abschnitte.
+- Große Hebel: Platzierung sieht den **kommenden Rhythmus** (bidirektionaler Leser +
+  autoregressive Positionen; Mapperatorinator kennt den künftigen Rhythmus nicht);
+  Classifier-Free Guidance für Stil/Sterne (ohne Training); Raster-Klassen statt
+  Mischverteilung + Neuversuche; Ära/Jahr als Bedingung; Best-of-N mit Modell-
+  Wahrscheinlichkeit + P5–P95-Strafe; KV-Cache/RoPE für Tempo (Cache falsch, sobald das
+  Fenster voll ist); 1/3-, 1/6-, 1/8-Raster und 3/4-Takt; Timing-Genauigkeit messen.
+- Messaufbau: größerer Blindtest (10 Songs × 3 Stufen, Gewinnquote); eigenes Testset nur
+  für Endentscheidungen (die 40 Validierungssongs werden überbenutzt); Messskript über den
+  echten App-Weg (`generate_beatmap`); Mapperatorinator auf 20+ Songs als Messlatte.
+- Aufräumen: Repo öffentlich, 124 MB Modelle in der Git-Historie (Git LFS/Releases);
+  Prompts enthalten lokale Pfade und den Vornamen; Testanzahl in STATUS widersprüchlich.
+
 ## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
 **Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
 1. Hauptteil betonen (Zwischenlösung bis Prompt 04): in Kiai-/Refrain-Abschnitten größere
