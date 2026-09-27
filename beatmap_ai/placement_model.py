@@ -81,6 +81,10 @@ from .placement_data import (  # noqa: F401  (re-exported for older imports)
 )
 
 
+# Give the model the current heading when placing (see _Walker.heading_into). Off: the
+# trained models place better without it.
+FEED_HEADING = False
+
 # --------------------------------------------------------------------------------------
 # Model
 
@@ -485,8 +489,15 @@ class _Walker:
         """Write the current direction of movement into row i before the model reads it.
         In training every row carries the heading its offset is measured against
         (placement_data.map_objects); ``place`` sets the same value, but only after the
-        model has been asked, so the model saw 0/0 -- a direction it never trained on."""
-        rows[i, HCOS], rows[i, HSIN] = math.cos(self.heading), math.sin(self.heading)
+        model has been asked, so the model saw 0/0 -- a direction it never trained on.
+
+        Off by default (``FEED_HEADING``): correct as it is, it made the trained models
+        place worse. On 5 songs (27.09.) sharp turns went from 38 % to 60 % at Insane and
+        36 % to 50 % at Expert (ranked ~23-41 %), straight moves and pattern deviation got
+        worse. Without its own heading the model places more carefully. Worth switching on
+        for a model that is evaluated with it from the start."""
+        if FEED_HEADING:
+            rows[i, HCOS], rows[i, HSIN] = math.cos(self.heading), math.sin(self.heading)
 
     def fits(self, u: float, v: float, time: float | None = None, gap_beats: float = 1.0) -> bool:
         """On the playfield and readable: stacked pairs on 1/4 or 1/2 notes (no longer

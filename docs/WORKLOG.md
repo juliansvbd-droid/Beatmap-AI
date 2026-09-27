@@ -3,6 +3,15 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+
+## 2026-09-27 vormittags – Claude Code (Opus 5.5, Nachmessung nach dem Nachtlauf)
+- Volle Suite auf der GPU: 58 grün.
+- Gestern vs. heute auf 5 Songs × 3 Diffs gemessen (Details in STATUS „Nachmessung …“):
+  Combo-Kopf (d) und Richtungseingabe (a) haben die App-Maps verschlechtert → beide per
+  Schalter aus (`learned_combos`, `FEED_HEADING`); App erzeugt wieder bitgenau die Maps von
+  gestern. Test für a) setzt den Schalter selbst.
+- v3 aus dem Nachtlauf nicht besser als v2 (zwei Insane-Maps), nicht übernommen.
+
 ## 2026-09-27 15:52 W. Europe Summer Time – Codex (Prompt 05 abgeschlossen, Teilergebnisse)
 - Geprüft: Nachtlauf PID 29160 ist beendet; kein Python-/PyTorch-Trainingsprozess läuft.
 - Phasen A/B/C erreichten jeweils ihr 45-Minuten-Limit während Einlesen/Vorbereiten des Datensatzes. Phase D wurde ab Epoche 29 fortgesetzt und endete nach 97/1000 Epochen; bester Checkpoint Epoche 93 mit Validierungsverlust 2,7839. Inferenz-Checkpoint `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\sequence-v3.pt` (45.075.614 Bytes, 11,26 Mio. Parameter); Resume-Checkpoint `sequence-v3.last.pt` (Epoche 97). App-Modelldatei blieb unangetastet.

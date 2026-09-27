@@ -28,10 +28,12 @@ def _placer():
                           None, np.ones(200), Grid(), 0.5, np.random.default_rng(1))
 
 
-def test_model_sees_the_heading_it_was_trained_with():
+def test_model_sees_the_heading_it_was_trained_with(monkeypatch):
     """Training rows carry the heading each offset is measured against (a unit vector).
     When placing, the row being placed must carry it already when the model reads it --
     it used to be 0/0 there, an input the model never saw in training."""
+    import beatmap_ai.placement_model as placement_model
+    monkeypatch.setattr(placement_model, "FEED_HEADING", True)  # off by default, see there
     placer = _placer()
     seen = []
     original = placer._model_features

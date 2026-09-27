@@ -203,6 +203,27 @@ Mapperatorinator erzeugen, dessen tatsächliche Sterne messen, dann BeatMap AI (
 mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65★ gegen
 2,02★ war nicht vergleichbar (auch Insane/Expert-Paare lagen 0,2–1,1★ auseinander).
 
+## Nachmessung der Review-Fixes (27.09. vormittags, Claude Code) – wichtig
+5 Songs (GUERREIRO, ALQUIMIA, S0N6F0RMYD34TH, LOUCURA LETAL, AKAI) × Normal/Insane/Expert,
+Code von gestern (d4d0968) gegen heute, gemessen mit `pattern_stats.py` und
+`compare_maps.py` (Wendungen entlang des Cursorwegs):
+- **d) Combo-Kopf verschlechtert:** Expert 2,6 statt 6,0 Objekte pro Combo (ranked ~4,4),
+  und über die Combo-Eingabe mehr scharfe Wendungen. → abgeschaltet
+  (`SequencePlacer.learned_combos = False`), Taktregel wie vorher.
+- **a) Richtungseingabe verschlechtert Insane/Expert** (auch ohne d): scharfe Wendungen
+  Insane 38 → 60 %, Expert 36 → 50 % (ranked ~23–41 %), gerade Wege 16 → 7 %,
+  Musterabweichung Insane 0,94 → 1,48, P95-Ausreißer Expert 16 → 29 pro 100; nur Normal
+  leicht besser. Technisch korrekt (Training = Erzeugen), aber die trainierten Modelle
+  platzieren ohne eigene Richtung vorsichtiger und menschlicher. → abgeschaltet
+  (`placement_model.FEED_HEADING = False`); erst für ein neu trainiertes/gemessenes Modell.
+- Mit beiden Schaltern aus erzeugt die App **bitgenau dieselben Maps wie gestern** (geprüft).
+  b), c), e), f), KV-Cache bleiben aktiv (betreffen v3, Song-Passung, Vorplanung, nicht die
+  App mit v2).
+- **v3 (Nachtlauf, 11,3 Mio., Epoche 93, Val 2,78):** die beiden Insane-Maps sind schlechter
+  als v2 (ALQUIMIA 60,7 statt 31,8 P95-Ausreißer/100, GUERREIRO Musterabweichung 1,92 statt
+  0,41). Nicht übernommen. Vorplanung (Phase E) nicht trainiert (Daten laden > Zeitlimit),
+  Song-Passung trainiert (AUC 0,956, mit Platzierungs-Negativen).
+
 ## Code-Review einer Cloud-Sitzung (27.09., nur lesend) – Befunde
 **Behoben von Claude Code am 27.09. nachts (während Phase D lief; der Nutzer hat mit Luna
 abgestimmt, dass ein Eingriff unwahrscheinlich ist; wirkt ab Phase E/F/G und in der App):**

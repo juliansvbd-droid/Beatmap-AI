@@ -439,6 +439,10 @@ class SequencePlacer:
         self.sv_at = sv_at
         self.section_profile = section_profile or []
         self.use_crutches = crutches
+        # The combo head's per-object draws gave far too many new combos (Expert 2.6 objects
+        # per combo, ranked ~4.4; measured 27.09. on 5 songs), and new combos feed back into
+        # placement (more sharp turns). Off until it is calibrated; the bar rule decides.
+        self.learned_combos = False
 
     def in_bounds(self, x: float, y: float) -> bool:
         m = self.margin
@@ -620,7 +624,7 @@ class SequencePlacer:
         from .placement_model import Choice, sample_mixture
         context = self.model.config["context"]
         i = len(out_plan)
-        if out_plan:
+        if out_plan and self.learned_combos:
             self._decide_combo(item, out_plan, rng)
         out_plan.append(item)
         row = self._row(item)
