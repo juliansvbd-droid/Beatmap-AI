@@ -7,6 +7,20 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 
 
 
+## 2026-09-28 00:18 Europe/Berlin – Codex (Schätzung Jump-only-Platzierung)
+- `docs/STATUS.md`: aktiven externen ROCm-Map-Generierungstest vermerkt; kein Eingriff und kein
+  neues Training gestartet.
+- Trainingsbasis aus `D:\BeatMap-AI-Dataset\day\2026-09-27\day_run.log`: großes v3 mit
+  26,14 Mio. Parametern, 500 Schritten/Epoche und Batch 8; 168 Epochen vom ersten bis zum
+  letzten Epochenlog in 2 h 57 min (ca. 63 s/Epoche), Datensatz-/Tagger-Vorlauf ca. 2½ min.
+- Die dokumentierten Community-Tag-Zahlen ergeben 5.815 Jumpmaps, aber nur 342 unter 4★.
+  Geschätzt: 60 Epochen ca. 1 h 03 min, 80 ca. 1 h 24 min, 100 ca. 1 h 45 min, jeweils plus
+  2½–5 min Vorbereitung. Empfehlung: 60 starten, song-getrennte Validierung prüfen, höchstens
+  bis 80–100 verlängern, solange sie sich verbessert. Auto-Tagger-Erweiterung noch nicht gezählt.
+- Ergebnis ist eine Planung/Schätzung; keine Trainingsdaten, Modelle oder Tests verändert bzw.
+  gestartet. Offen: vor einem echten Lauf den strikten Jump-Filter definieren und den Pool je
+  Sternstufe zählen; aktiven ROCm-Generierungstest erst beenden lassen.
+
 ## 2026-09-27 spät – Claude Code (Opus 5.5, Auswertung Tageslauf)
 - v3 groß (Val 1,871) und Vorplanung trainiert; v3 gegen v2 auf 5 Songs gemessen (Zahlen in
   STATUS „Tageslauf 27.09.“): halb so viele Ausreißer, bessere Muster, aber zu kleine Sprünge.

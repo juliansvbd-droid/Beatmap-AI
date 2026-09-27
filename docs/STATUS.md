@@ -1,10 +1,11 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-27 15:56:28 W. Europe Summer Time, von Codex._
+_Zuletzt aktualisiert: 2026-09-28 00:18 Europe/Berlin, von Codex._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **Kein BeatMap-AI-Job läuft.** Nachtlauf am 27.09.2026 um 07:58:45 beendet; kein Python-/PyTorch-Prozess aktiv. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
+- **Kein Training oder Datensatzlauf läuft.** Bei der Prüfung um 00:18 am 28.09.2026 lief ein externer ROCm-Map-Generierungstest aus einem Claude-Scratchpad (`run_exp.py nocr ... --no-crutches`, PID 13448 samt Kindprozess 5080). Er wurde nicht beendet; bis zu seinem Ende keinen weiteren PyTorch-/GPU-Lauf starten.
+- Nachtlauf am 27.09.2026 um 07:58:45 beendet. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
 - Prompt 05 nur teilweise abgeschlossen: Phasen A/B/C liefen jeweils ins 45-Minuten-Limit, während der Datensatz eingelesen/vorbereitet wurde. Phase D trainierte v3 bis Epoche 97/1000; bester gespeicherter Checkpoint Epoche 93, Validierungsverlust 2,7839 (11,26 Mio. Parameter; 45,1 MB). `sequence-v3.pt` liegt ausschließlich im Nachtlaufordner; in der App bleibt v2 aktiv.
 - Phase E erreichte nach 52,5 Minuten Datensatzaufbereitung noch kein Planner-Training. Der angeforderte Validierungslauf 128 vs. 256 und die Auswahl nach Hauptteil/Kiai/Stern-/Abschnittsfehlern fehlen. Phase F trainierte Song-Passung bis Epoche 78; bester AUC-Wert 0,9557 in Epoche 56; Checkpoint ebenfalls nur im Nachtlaufordner.
 - Phase G erstellte zwei Blindtest-Maps und den P95-Bericht. ALQUIMIA Insane v3 liegt weiterhin bei 60,704 P95-Ausreißern/100 Objekte, davon 49,560 schnelle scharfe Wendungen; GUERREIRO Insane v3 bei 8,844 gesamt. Die v2/v3-Folgeauswertungen liefen in ihre Zeitlimits; Planner-Auswertung wurde mangels Checkpoint übersprungen. Kein belastbarer Gesamtsieg von v3 ist damit belegt. Details: `Phase-G-Muster-und-P95.md`, `Phase-G-Messung.md` im Nachtlaufordner.
@@ -241,6 +242,26 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   treffen etwas schlechter (Expert teils 5,1–5,4 statt 5,6). Zielkonflikt: menschliche
   Dichte/Sprunggröße gegen mehr unsaubere Bewegungen → **Blindtest** (Expert: v2 alt / v2
   Sprünge zuerst / v3 Sprünge zuerst) entscheidet. App unverändert (geprüft: bitgleich).
+
+## Schätzung: Platzierungs-KI nur mit Jumpmaps (28.09.)
+- Basis: Der große v3-Lauf auf RX 7700 XT nutzte 26,14 Mio. Parameter, Kontext 256, Batch 8 und
+  500 Schritte pro Epoche. 168 Epochen dauerten ca. 2 h 57 min reines Training, also rund
+  **63 s pro Epoche**; Datenladen/Tagging brauchte vor der ersten Epoche zusätzlich etwa 2½ min.
+- Im bisherigen Tag-Bestand sind aus der Sternstatistik **5.815 community-getaggte Jumpmaps**
+  (20 + 42 + 280 + 1.682 + 2.350 + 1.441 von 1–2★ bis 6–7★). Davon sind nur 342 unter 4★.
+  Der Tagger könnte den Pool erweitern; die tatsächlich hoch genug bewerteten Jumpmaps sind
+  noch nicht gezählt. Tagger-AUC: 0,78 insgesamt, aber 0,63 bei 1–4★.
+- Grobe Laufzeit mit derselben großen v3-Konfiguration: **60 Epochen ≈ 1 h 03 min**,
+  **80 ≈ 1 h 24 min**, **100 ≈ 1 h 45 min**, jeweils plus rund 2½–5 min Vorbereitung.
+  Eine Epoche sind hier 500 × Batch 8 = 4.000 zufällig gezogene Fenster, kein vollständiger
+  Durchlauf über alle Maps.
+- Empfehlung: mit strikt Jump-gefilterten Daten starten, nach **60 Epochen** den besten
+  song-getrennten Validierungscheckpoint prüfen; nur bei weiter besserer Validierung auf
+  **80–100** verlängern. Die 168 Epochen des Vollmodells sind für den deutlich kleineren
+  bestätigten Jump-Pool kein sinnvoller Standard: beim Vollmodell fiel der Trainingsverlust
+  zuletzt fast auf null. Erst automatische Jump-Tags mit gezählter Poolgröße und manueller
+  Stichprobenprüfung würden eine längere Runde rechtfertigen. Das ist eine Schätzung, kein
+  gestarteter Trainingslauf; das App-Modell bleibt unberührt.
 
 ## Datenvorbereitung für den nächsten Nachtlauf (27.09., Claude Code) – erledigt
 - **Warum der Nachtlauf hing:** (1) `sequence_data.section_controls` rechnete pro Objekt ein
