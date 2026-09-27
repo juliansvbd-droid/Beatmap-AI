@@ -5,6 +5,21 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 
 
 
+
+## 2026-09-27 abends – Claude Code (Opus 5.5, Geräte-Optionen + Tageslauf)
+- App: „Rechnen auf: Automatisch / Grafikkarte (NVIDIA oder AMD) / Nur Prozessor (CPU)“
+  (`--device auto|gpu|cpu`, `generator.DEVICE_PREFERENCE`, `device_summary`) und Anzeige der
+  erkannten Grafikkarte + installierten PyTorch-Variante ohne PyTorch zu laden
+  (`ui.detected_hardware`, warnt bei NVIDIA-Karte mit ROCm-PyTorch usw.).
+- Neu: „BeatMap AI einrichten.bat“ + `scripts/setup_env.py` für neue PCs: erkennt NVIDIA/AMD/
+  keine Karte, legt `.venv-cuda` / `.venv-rocm` / `.venv-cpu` an und installiert passendes
+  PyTorch (CUDA cu128 / ROCm 7.2.1 aus repo.radeon.com, Python 3.12 / CPU). **Nur die
+  Erkennung ist getestet, nicht die Installation** (kein NVIDIA-PC, kein frischer PC).
+  „Start BeatMap AI.bat“ nimmt die erste vorhandene Umgebung.
+- Tageslauf `scripts/day_run.py`: v3 groß (26,1 Mio.) 3 h ab 19:15, danach Vorplanung;
+  Ausgabe `D:\BeatMap-AI-Dataset\day6-09-27`. ~70 s pro 500 Schritte.
+- Volle Tests für die Geräte-Änderung nach dem Training (während eines Trainings keine).
+
 ## 2026-09-27 mittags – Claude Code (Opus 5.5, Datenvorbereitung)
 - `section_controls` vektorisiert (3 s → 7 ms pro v3-Batch, identische Werte, Test), Vorplanungs-
   Daten beschleunigt (6,5 min für alle 59.699 Difficulties), Tagger-NaN behoben und Tagger

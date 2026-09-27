@@ -431,9 +431,17 @@ def typical_jump(model, stars: float) -> float:
                            [1.0, 1.21, 1.26, 1.62, 1.75, 1.91, 2.0]))
 
 
+# Where the models run when generating: "auto" (the GPU if PyTorch sees one), "gpu" (the
+# same, but say so when there is none) or "cpu". Set from the CLI's --device.
+DEVICE_PREFERENCE = "auto"
+
+
 def inference_device() -> str:
-    """The GPU when PyTorch sees one (CUDA or ROCm), else the CPU. Star targeting runs
-    the model several times per difficulty, so this matters."""
+    """The GPU when PyTorch sees one (NVIDIA via CUDA or AMD via ROCm) and the preference
+    allows it, else the CPU. Star targeting runs the model several times per difficulty,
+    so this matters."""
+    if DEVICE_PREFERENCE == "cpu":
+        return "cpu"
     import torch
     if torch.cuda.is_available():
         from .train import resolve_device
@@ -444,6 +452,16 @@ def inference_device() -> str:
         except Exception:
             pass
     return "cpu"
+
+
+def device_summary() -> str:
+    """What the models run on, in words (without loading anything onto the GPU)."""
+    import torch
+    if DEVICE_PREFERENCE != "cpu" and torch.cuda.is_available():
+        backend = (f"ROCm {torch.version.hip}" if getattr(torch.version, "hip", None)
+                   else f"CUDA {torch.version.cuda}")
+        return f"{torch.cuda.get_device_name(0)} ({backend})"
+    return "Prozessor (CPU)"
 
 
 def bundled_model() -> Path | None:

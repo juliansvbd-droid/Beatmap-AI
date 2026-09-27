@@ -41,6 +41,49 @@ CRITIC_CHOICES = (
     ("Neu (v2, von Luna)", Path(__file__).parent / "models" / "critic-v2.pt"),
     ("Aus", None),
 )
+# Where the models run when generating (the CLI's --device).
+DEVICE_CHOICES = (
+    ("Automatisch", "auto"),
+    ("Grafikkarte (NVIDIA oder AMD)", "gpu"),
+    ("Nur Prozessor (CPU)", "cpu"),
+)
+
+
+def detected_hardware() -> str:
+    """Graphics cards and the installed PyTorch build, in words -- without importing
+    PyTorch (with ROCm that alone reserves several GB)."""
+    import importlib.metadata
+    import subprocess
+    cards = []
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(Get-CimInstance Win32_VideoController).Name"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            cards = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        version = importlib.metadata.version("torch")
+    except importlib.metadata.PackageNotFoundError:
+        version = ""
+    build = ("PyTorch fehlt" if not version else "PyTorch für AMD (ROCm)" if "rocm" in version
+             else "PyTorch für NVIDIA (CUDA)" if "+cu" in version else "PyTorch nur für CPU")
+    names = " / ".join(cards) if cards else "keine Grafikkarte erkannt"
+    vendors = " ".join(cards).lower()
+    hint = ""
+    if "nvidia" in vendors and "rocm" in version:
+        hint = " – passt nicht zur NVIDIA-Karte: „BeatMap AI einrichten.bat“ ausführen"
+    elif ("amd" in vendors or "radeon" in vendors) and "+cu" in version:
+        hint = " – passt nicht zur AMD-Karte: „BeatMap AI einrichten.bat“ ausführen"
+    elif (cards and ("nvidia" in vendors or "radeon" in vendors)
+          and version and "rocm" not in version and "+cu" not in version):
+        hint = " – die Grafikkarte wird so nicht genutzt: „BeatMap AI einrichten.bat“ ausführen"
+    return f"Gefunden: {names} · installiert: {build}{hint}"
+
+
 # Training folders preselected in the UI (several are separated by ";").
 DATA_PATHS = (DATA_PATH, PROJECT_ROOT / "best_maps")
 CHECKPOINTS_PATH = PROJECT_ROOT / "checkpoints"
@@ -297,6 +340,8 @@ class BeatmapApp(tk.Tk):
         self.variety_var = tk.DoubleVar(value=50)
         self.variety_label = tk.StringVar(value="50 %")
         self.critic_var = tk.StringVar(value=CRITIC_CHOICES[0][0])
+        self.device_var = tk.StringVar(value=DEVICE_CHOICES[0][0])
+        self.hardware_var = tk.StringVar(value="Hardware wird erkannt …")
         self.passes_var = tk.IntVar(value=1)
         self.planner_var = tk.BooleanVar(value=False)
         self.sequence_v3_var = tk.BooleanVar(value=False)
@@ -366,6 +411,19 @@ class BeatmapApp(tk.Tk):
                  bg=SURFACE, fg=MUTED, font=("Segoe UI", 9)).pack(side="left")
         ttk.Combobox(critic_row, textvariable=self.critic_var, state="readonly", width=22,
                      values=[label for label, _ in CRITIC_CHOICES]).pack(side="left", padx=(8, 0))
+        device_row = ttk.Frame(card, style="Card.TFrame")
+        device_row.pack(fill="x", pady=(8, 0))
+        tk.Label(device_row, text="Rechnen auf", bg=SURFACE, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(side="left")
+        ttk.Combobox(device_row, textvariable=self.device_var, state="readonly", width=28,
+                     values=[label for label, _ in DEVICE_CHOICES]).pack(side="left", padx=(8, 0))
+        tk.Label(card, textvariable=self.hardware_var, bg=SURFACE, fg=MUTED, font=("Segoe UI", 9),
+                 wraplength=720, justify="left").pack(anchor="w", pady=(4, 0))
+        def detect() -> None:
+            text = detected_hardware()
+            self.after(0, lambda: self.hardware_var.set(text))  # Tk only from its own thread
+
+        threading.Thread(target=detect, daemon=True).start()
         pass_row = ttk.Frame(card, style="Card.TFrame")
         pass_row.pack(fill="x", pady=(8, 0))
         tk.Label(pass_row, text="Durchgänge pro Abschnitt", bg=SURFACE, fg=MUTED,
@@ -936,6 +994,7 @@ class BeatmapApp(tk.Tk):
                 messagebox.showinfo("Vorplanung", "Es wurde noch kein Vorplanungsmodell gefunden.", parent=self)
                 return
             args.extend(("--planner", str(planner_paths[0])))
+        args.extend(("--device", dict(DEVICE_CHOICES)[self.device_var.get()]))
         critic = dict(CRITIC_CHOICES)[self.critic_var.get()]
         if critic is None:
             args.append("--no-critic")

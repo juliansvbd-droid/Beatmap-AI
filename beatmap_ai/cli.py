@@ -57,6 +57,9 @@ def main(argv: list[str] | None = None) -> None:
     gen.add_argument("--title")
     gen.add_argument("--artist")
     gen.add_argument("--seed", type=int, default=0)
+    gen.add_argument("--device", choices=("auto", "gpu", "cpu"), default="auto",
+                     help="run the models on the graphics card if there is one (auto, gpu: "
+                          "NVIDIA via CUDA or AMD via ROCm) or on the processor only (cpu)")
 
     ana = sub.add_parser("analyze", help="print the detected BPM and offset")
     ana.add_argument("audio")
@@ -139,7 +142,14 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
     if args.command == "generate":
+        from . import generator
         from .generator import generate
+        generator.DEVICE_PREFERENCE = args.device
+        if args.device != "auto":
+            summary = generator.device_summary()
+            if args.device == "gpu" and summary == "Prozessor (CPU)":
+                print("No graphics card usable by PyTorch was found; running on the processor.")
+            print(f"device: {summary}")
         style = {}
         for item in args.style:
             name, _, strength = item.partition("=")

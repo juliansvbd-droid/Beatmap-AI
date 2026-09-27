@@ -1,14 +1,13 @@
 @echo off
 cd /d "%~dp0"
-rem Prefer the ROCm environment (AMD GPU training); fall back to the DirectML one.
-if exist ".venv-rocm\Scripts\pythonw.exe" (
-    start "" ".venv-rocm\Scripts\pythonw.exe" -m beatmap_ai ui %*
-    exit /b 0
-)
-if exist ".venv\Scripts\pythonw.exe" (
-    start "" ".venv\Scripts\pythonw.exe" -m beatmap_ai ui %*
-    exit /b 0
+rem Use the environment "BeatMap AI einrichten.bat" created: AMD (ROCm), NVIDIA (CUDA),
+rem processor only, or the old DirectML one. In the app, "Rechnen auf" picks GPU or CPU.
+for %%V in (.venv-rocm .venv-cuda .venv-cpu .venv) do (
+    if exist "%%V\Scripts\pythonw.exe" (
+        start "" "%%V\Scripts\pythonw.exe" -m beatmap_ai ui %*
+        exit /b 0
+    )
 )
 echo Die Projektumgebung wurde nicht gefunden.
-echo Bitte richte zuerst die Python-Umgebung fuer dieses Projekt ein.
+echo Bitte zuerst "BeatMap AI einrichten.bat" ausfuehren.
 pause
