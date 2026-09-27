@@ -193,6 +193,10 @@ Slidern im Kiai, `sv_at`).
   Messlatte für Blindtests. Prompt 03 entsprechend überarbeitet (größeres Modell erlaubt,
   Zielwerte, Krücken, Blindtest-Material).
 
+**Nutzerbeobachtung aus Mapperatorinator-Videos (27.09.):** dort oft (1) inkonsistent – derselbe
+Songteil bekommt plötzlich ein anderes Muster – und (2) unangenehme Platzierung. Konsistenz ist
+also unser Unterscheidungsmerkmal; im nächsten Blindtest mitbewerten (Refrain beim zweiten Mal),
+Kennzahlen `music_aligned_repeat_pct`/`stale_repeat_pct` aus `pattern_stats.py`.
 **Stärke laut Nutzer (Blindtest):** BeatMap AI ist pro Song deutlich **konsistenter** – es
 wählt eine Musterart (z. B. Fünfeck-Jumps) und zieht sie durch die Map; Mapperatorinator
 wechselt das Jump-Muster in jedem Jump-Teil. Muss in v3/04 erhalten bleiben (Wiederholung
