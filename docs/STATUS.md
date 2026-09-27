@@ -242,6 +242,19 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   treffen etwas schlechter (Expert teils 5,1–5,4 statt 5,6). Zielkonflikt: menschliche
   Dichte/Sprunggröße gegen mehr unsaubere Bewegungen → **Blindtest** (Expert: v2 alt / v2
   Sprünge zuerst / v3 Sprünge zuerst) entscheidet. App unverändert (geprüft: bitgleich).
+- **Warum v3 so zahm ist (Diagnose 28.09. nachts, 5 Songs, Insane/Expert, ohne Training):**
+  Hauptursache bestätigt: v3 sah im Training zu 60 % Abschnitts-Vorgaben, beim Erzeugen fehlen
+  sie (alles 0). Mit typischen Werten je halbem Stern: Sprung ½ Beat Insane 66 → 91, Expert
+  78 → 110 px, Expert weniger Noten (5,10 → 4,66/s). **Mit der Vorplanung** (`--planner
+  …/day/2026-09-27/planner.best.pt`): Insane 93 px bei gleich wenigen Ausreißern (19),
+  Stacks 8 % (Mensch 8 %); Expert 102 px, 4,85 Noten/s. Mehr Zufall (Temperatur 1,0) bringt
+  wenig; **ohne Krücken wird v3 viel schlechter** (Musterabweichung 2,1–2,5). v3 + Vorplanung +
+  `--jumps-first`: Expert 4,25 Noten/s (Mensch 3,94), Doubles 0, Triples 1,0 (1,75), scharfe
+  Wendungen 33 % (51 %), Ausreißer 24; Sterne teils zu niedrig (4,9 statt 5,6). Sprünge bleiben
+  unter dem Menschen (Insane 128 statt 157, Expert ~100–120 statt ~200).
+  → Nächster Blindtest: v2 (App) gegen v3+Vorplanung gegen v3+Vorplanung+Sprünge zuerst.
+- Behoben: Log-Zeilen mit „★“ ließen das Erzeugen mit Vorplanung abbrechen (Windows-Zeichensatz);
+  die App startet den Generator jetzt mit `PYTHONIOENCODING=utf-8`, Logs nur noch ASCII-Sterne.
 
 ## Schätzung: Platzierungs-KI nur mit Jumpmaps (28.09.)
 - Basis: Der große v3-Lauf auf RX 7700 XT nutzte 26,14 Mio. Parameter, Kontext 256, Batch 8 und

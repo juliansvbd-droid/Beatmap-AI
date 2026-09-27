@@ -576,7 +576,7 @@ def generate(
                      for name, value in sorted(suggested.items(), key=lambda item: -item[1])[:2]
                      if value >= 0.35}
             style = style or None
-        log(f"pre-planner: recommended maximum {advice['max_stars']:.1f}★")
+        log(f"pre-planner: recommended maximum {advice['max_stars']:.1f}*")
     timing_notes = []
     if timing.swing_confidence >= 0.25 and timing.swing_ratio > 0.515:
         timing_notes.append(f"swing {timing.swing_ratio:.0%}")
@@ -646,7 +646,7 @@ def generate(
             advice = plan_song(planner, features.mel, timing.beat_length, target_stars,
                                timing.offset_ms)
             section_profile = advice["sections"]
-            log(f"  pre-planner for {target_stars:g}★: {len(section_profile)} sections")
+            log(f"  pre-planner for {target_stars:g}*: {len(section_profile)} sections")
         bm = generate_beatmap(
             features, timing, name, seed=seed + i, model=model, threshold=threshold,
             title=title, artist=artist, audio_filename="audio" + audio_path.suffix.lower(),

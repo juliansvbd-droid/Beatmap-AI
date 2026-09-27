@@ -1143,6 +1143,9 @@ class BeatmapApp(tk.Tk):
                 errors="replace",
                 bufsize=1,
                 creationflags=creationflags,
+                # The child must write UTF-8 too: on Windows a pipe otherwise gets the ANSI code
+                # page, and a ★ or a Japanese song title in the log ends the generation.
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             )
             self.events.put(("process", process))
             assert process.stdout is not None

@@ -169,7 +169,7 @@ def train_tagger(data_dirs, tag_files, out_path, epochs=24, batch_size=256, lr=5
         mean_auc = float(auc.mean())
         low_auc = _auc(y_val[low_star], prob[low_star]) if low_star.any() else np.full(len(TAGS), 0.5)
         log(f"tagger epoch {epoch}/{epochs}: loss={np.mean(losses):.4f}, val AUC={mean_auc:.4f}; "
-            f"1-4★ AUC={float(low_auc.mean()):.4f}")
+            f"1-4* AUC={float(low_auc.mean()):.4f}")
         metrics = {"mean_auc": mean_auc, "auc_by_tag": dict(zip(TAGS, auc.tolist())),
                    "low_star_auc_by_tag": dict(zip(TAGS, low_auc.tolist()))}
         if mean_auc > best_auc:
