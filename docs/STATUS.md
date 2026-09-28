@@ -21,8 +21,23 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 - Unsere Maps haben ~2× so viele Sprungfolgen wie Menschen (v3 genauso): der Rhythmus macht zu
   wenige Slider (Expert z. B. 553 Kreise / 10 Slider). Deckelung des Formplans
   (`plan_shapes(coverage="human")`) half nicht, ist nur Option.
-- Nächste Schritte: Fünf-/Sechsecke aus „flow“-Führung zügeln, P95/compare_maps messen, dann
-  Entscheidung, ob v4 + shape-guide in die App (als Option) kommt; Slideranteil des Rhythmus prüfen.
+- **Nachtarbeit 28.09. (Nutzer schläft, Claude Code):**
+  - Vielecke kamen aus „flow“-Folgen (gleicher Winkel → Sechs-/Fünfecke) und aus als „other“
+    geplanten Folgen (Modell macht selbst Fünfecke). Behoben: flow wählt zufällig unter passenden
+    Kandidaten mit ≥15° Winkeländerung, „other“ erzwingt Unregelmäßigkeit. 4,5–6★: Vielecke
+    4,5 → 2,5 je 100 Objekte (Mensch 0,7); Sterne je Map Median 1,0 / Mittel 3,6 (Mensch 1,7 / 3,7),
+    60 % der Maps mit Sternen (Mensch 62 %). Messung je Map: Scratchpad `per_map_shapes.py`.
+  - **Sols „pattern_deviation“ bestraft seltene Muster grundsätzlich** (menschlicher Median für
+    Sterne/Fünfecke je Map = 0, Skala 0,05): jede Form zählt als Abweichung, auch bei menschlicher
+    Häufigkeit. Für Formen die Verteilung je Map benutzen, nicht diesen Wert.
+  - **Dichte:** Auf manchen Songs erreichte die Sternsuche 5,5★ mit 6,1–6,8 Noten/s und 0–2 %
+    Slidern (Mensch 5–6★: Median ~4,0–4,4, P95 5,0–5,8 Noten/s, ~40 % Slider). Neu
+    `--human-density` (aus per Default): Maps über dem menschlichen P95 an Noten/s gelten als
+    weiter vom Ziel, Sprünge dürfen erst bis 1,4× wachsen. Ergebnis (8 Songs): Expert-Ausreißer
+    27–30 → 22–24/100, dichteste Maps wieder mit Slidern (ECLIPSER 6,75 → 3,3 Noten/s);
+    Insane-Ausreißer schwanken zwischen Läufen 21–29 (Rauschen bei 8 Maps).
+  - Deshalb läuft ein Vergleich auf allen 15 Songs (v3+Vorplanung / v4+shape-guide /
+    v4+shape-guide+human-density), Ergebnis im WORKLOG.
 - **Blindtests beendet (Nutzer, 28.09.):** Ab jetzt entscheidet Claude über Messwerte.
   Blindtest 3 aufgelöst (ohne ALQUIMIA Expert): v3+Vorplanung 2× vorne, nie hinten;
   v2 1× vorne; v3+Vorplanung+jumps-first 2× hinten.
