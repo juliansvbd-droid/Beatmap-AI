@@ -3,6 +3,14 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-28 – Claude Code (Opus 5.5): Sprungformen, erster Schritt zu v4
+- Erste Note startet jetzt im Mittelbereich (`b8284fa`, Nutzer: Maps starten fast immer in der Ecke).
+- `beatmap_ai/jump_shapes.py` + Tests, `scripts/shape_examples.py`, `scripts/jump_geometry.py`
+  (`d553903`, gepusht). Ergebnis in STATUS „Sprungformen“: Menschen nutzen ab 3★ viele
+  Sterne (16–25 % der Sprungfolgen-Objekte), v3 fast keine.
+- Halbfertig: v4 Schritt 2 (Form-Labels für Trainingsdaten + Form-Bedingung). Blindtest-3
+  ALQUIMIA Expert steht noch aus.
+
 
 
 

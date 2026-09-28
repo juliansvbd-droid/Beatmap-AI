@@ -1,9 +1,14 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-28 00:18 Europe/Berlin, von Codex._
+_Zuletzt aktualisiert: 2026-09-28 Europe/Berlin, von Claude Code (Opus 5.5)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
+- **28.09., Claude Code: nichts läuft.** Aktuelle Arbeit = v4 „Formen gezielt“ (Plan mit Nutzer
+  abgestimmt, siehe Abschnitt „Sprungformen“). Schritt 1 (Form-Erkennung) fertig und gepusht
+  (`d553903`), Schritt 2 (Form-Labels in die Trainingsdaten, Form als Bedingung) als Nächstes.
+- Blindtest `D:\BeatMap-AI-Datasetlindtest-3` (v2 / v3+Vorplanung / v3+Vorplanung+jumps-first):
+  ALQUIMIA Expert noch nicht bewertet – Schlüssel erst danach auflösen.
 - **Kein Training oder Datensatzlauf läuft.** Bei der Prüfung um 00:18 am 28.09.2026 lief ein externer ROCm-Map-Generierungstest aus einem Claude-Scratchpad (`run_exp.py nocr ... --no-crutches`, PID 13448 samt Kindprozess 5080). Er wurde nicht beendet; bis zu seinem Ende keinen weiteren PyTorch-/GPU-Lauf starten.
 - Nachtlauf am 27.09.2026 um 07:58:45 beendet. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
 - Prompt 05 nur teilweise abgeschlossen: Phasen A/B/C liefen jeweils ins 45-Minuten-Limit, während der Datensatz eingelesen/vorbereitet wurde. Phase D trainierte v3 bis Epoche 97/1000; bester gespeicherter Checkpoint Epoche 93, Validierungsverlust 2,7839 (11,26 Mio. Parameter; 45,1 MB). `sequence-v3.pt` liegt ausschließlich im Nachtlaufordner; in der App bleibt v2 aktiv.
@@ -255,6 +260,23 @@ mit genau diesen Sternen erzeugen (`-d <Sterne>`). Nutzer: GUERREIRO Normal 2,65
   → Nächster Blindtest: v2 (App) gegen v3+Vorplanung gegen v3+Vorplanung+Sprünge zuerst.
 - Behoben: Log-Zeilen mit „★“ ließen das Erzeugen mit Vorplanung abbrechen (Windows-Zeichensatz);
   die App startet den Generator jetzt mit `PYTHONIOENCODING=utf-8`, Logs nur noch ASCII-Sterne.
+
+## Sprungformen: Mensch vs. unsere Modelle (28.09., Claude Code) – Grundlage für v4
+- Nutzer: „wir müssen schon Muster treffen“. `beatmap_ai/jump_shapes.py` erkennt pro Objekt die
+  Form in Sprungfolgen (≥5 Kreise, gleicher Rhythmus, alles Sprünge): star, hexagon, pentagon,
+  square, triangle, zigzag, back_and_forth, line, arc, flow, other (Fenster aus 4 Sprüngen,
+  nächstes Polygon ±10°). Tests: `tests/test_jump_shapes.py`. Auswertung:
+  `scripts/shape_examples.py` (Anteile + Editor-Beispielstellen), `scripts/jump_geometry.py`
+  (gleiche Abstände, Drehrichtung, Kreuzungen, Wiederholung je Folge).
+- Ergebnis (400 menschliche Maps je Sternbereich; Anteil an Objekten in Sprungfolgen):
+  3–4,5★ Mensch Sterne 16 %, v3+Vorplanung 0 %; 4,5–6★ Mensch Sterne 25 %, v2 5 %,
+  v3+Vorplanung 1 %. Unsere Modelle machen stattdessen mehr „other“ (unregelmäßig) und v2
+  zehnmal zu viele Fünf-/Sechsecke. Mapper ohne Formen halten trotzdem gleiche Abstände
+  (~60 %) und die Drehrichtung (~83 %) – das fehlt uns ebenfalls.
+- v4-Plan: (1) Erkennung ✔; (2) alle ~60k Maps labeln, Form als Eingabe der Platzierungs-KI;
+  (3) bei der Generierung Formen nach menschlicher Häufigkeit je Stern wählen, in Refrains
+  wiederholen (später per Vorplanung); (4) v4 ~5 h trainieren; (5) messen + Blindtest.
+  Alles opt-in, v2 bleibt App-Standard bis zum Blindtest.
 
 ## Schätzung: Platzierungs-KI nur mit Jumpmaps (28.09.)
 - Basis: Der große v3-Lauf auf RX 7700 XT nutzte 26,14 Mio. Parameter, Kontext 256, Batch 8 und
