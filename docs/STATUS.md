@@ -7,7 +7,7 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 - **28.09., Claude Code: nichts läuft.** Aktuelle Arbeit = v4 „Formen gezielt“ (Plan mit Nutzer
   abgestimmt, siehe Abschnitt „Sprungformen“). Schritt 1 (Form-Erkennung) fertig und gepusht
   (`d553903`), Schritt 2 (Form-Labels in die Trainingsdaten, Form als Bedingung) als Nächstes.
-- Blindtest `D:\BeatMap-AI-Datasetlindtest-3` (v2 / v3+Vorplanung / v3+Vorplanung+jumps-first):
+- Blindtest `D:\BeatMap-AI-Datasetblindtest-3` (v2 / v3+Vorplanung / v3+Vorplanung+jumps-first):
   ALQUIMIA Expert noch nicht bewertet – Schlüssel erst danach auflösen.
 - **Kein Training oder Datensatzlauf läuft.** Bei der Prüfung um 00:18 am 28.09.2026 lief ein externer ROCm-Map-Generierungstest aus einem Claude-Scratchpad (`run_exp.py nocr ... --no-crutches`, PID 13448 samt Kindprozess 5080). Er wurde nicht beendet; bis zu seinem Ende keinen weiteren PyTorch-/GPU-Lauf starten.
 - Nachtlauf am 27.09.2026 um 07:58:45 beendet. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
