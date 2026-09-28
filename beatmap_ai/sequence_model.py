@@ -716,6 +716,7 @@ class SequencePlacer:
             return self._centred_choice(mixture, target[1], target[2], walker, item, gap, scale, rng)
         distance, turn, direction = target
         best, best_score = None, float("inf")
+        loose = []  # flow: every fitting candidate turning the right way at a similar distance
         for _ in range(48):
             u, v = sample_mixture(mixture, rng, self.temperature) * OFFSET_SCALE
             if not walker.fits(u * scale, v * scale, item.time, gap):
@@ -726,10 +727,17 @@ class SequencePlacer:
             if turn is None:
                 good = np.sign(angle) == direction and 20.0 <= abs(angle) <= 120.0
                 score += 0.0 if good else 5.0
+                if good and abs(d - distance) <= 0.2 * distance:
+                    loose.append((float(u), float(v)))
             else:
                 score += abs((angle - turn + 180.0) % 360.0 - 180.0) / 15.0
             if score < best_score:
                 best, best_score = (float(u), float(v)), score
+        if loose:
+            # A random one, not the closest: always the closest distance with the model's
+            # favourite angle drew regular pentagons and hexagons (15 % of jump-run objects
+            # at 4.5-6*, ranked 3 %), where mappers' flow varies its angles.
+            return Choice(loose[int(rng.integers(len(loose)))])
         if best is not None and best_score <= 2.0:
             return Choice(best)
         if turn is not None:
