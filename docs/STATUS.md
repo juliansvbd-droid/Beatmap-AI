@@ -4,12 +4,17 @@ _Zuletzt aktualisiert: 2026-09-28 Europe/Berlin, von Claude Code (Opus 5.5)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **28.09., Claude Code: nichts läuft.** Aktuelle Arbeit = v4 „Formen gezielt“ (Plan mit Nutzer
-  abgestimmt, siehe Abschnitt „Sprungformen“). Schritt 1 (Form-Erkennung) fertig und gepusht
-  (`d553903`), Schritt 2 (Form-Labels in die Trainingsdaten, Form als Bedingung) als Nächstes.
-- Blindtest `D:\BeatMap-AI-Dataset\blindtest-3` (v2 / v3+Vorplanung / v3+Vorplanung+jumps-first):
-  ALQUIMIA Expert noch nicht bewertet – Schlüssel erst danach auflösen.
-- **Kein Training oder Datensatzlauf läuft.** Bei der Prüfung um 00:18 am 28.09.2026 lief ein externer ROCm-Map-Generierungstest aus einem Claude-Scratchpad (`run_exp.py nocr ... --no-crutches`, PID 13448 samt Kindprozess 5080). Er wurde nicht beendet; bis zu seinem Ende keinen weiteren PyTorch-/GPU-Lauf starten.
+- **28.09. läuft: v4-Training (GPU)** – `scripts/day_run.py --shapes --init-from
+  D:\BeatMap-AI-Dataset\day\2026-09-27\sequence-v3.pt --v3-hours 5 --planner-minutes 0 --patience 25`,
+  Ausgabe `D:\BeatMap-AI-Dataset\day\2026-09-28-v4\` (`sequence-v4.pt`, Log `day_run.log`).
+  Keinen zweiten PyTorch-/GPU-Lauf und keine volle pytest-Runde starten, bis es fertig ist.
+- v4 = v3 + Sprungform je Objekt als Eingabe (one-hot + Drehrichtung, `jump_shapes.shape_features`,
+  in 30 % der Fenster versteckt). Generierung plant Formen je Kreisfolge gleichen Rhythmus aus
+  `beatmap_ai/shape_reference.json` (`scripts/shape_reference.py`, 300 menschliche Maps je Stern);
+  CLI `--no-shapes`, `--shape-jumps`. Nur für Modelle mit Formeingabe; App (v2) unverändert.
+- **Blindtests beendet (Nutzer, 28.09.):** Ab jetzt entscheidet Claude über Messwerte.
+  Blindtest 3 aufgelöst (ohne ALQUIMIA Expert): v3+Vorplanung 2× vorne, nie hinten;
+  v2 1× vorne; v3+Vorplanung+jumps-first 2× hinten.
 - Nachtlauf am 27.09.2026 um 07:58:45 beendet. Gesamtstatus und Berichte: `D:\BeatMap-AI-Dataset\night\2026-09-26_220013\`.
 - Prompt 05 nur teilweise abgeschlossen: Phasen A/B/C liefen jeweils ins 45-Minuten-Limit, während der Datensatz eingelesen/vorbereitet wurde. Phase D trainierte v3 bis Epoche 97/1000; bester gespeicherter Checkpoint Epoche 93, Validierungsverlust 2,7839 (11,26 Mio. Parameter; 45,1 MB). `sequence-v3.pt` liegt ausschließlich im Nachtlaufordner; in der App bleibt v2 aktiv.
 - Phase E erreichte nach 52,5 Minuten Datensatzaufbereitung noch kein Planner-Training. Der angeforderte Validierungslauf 128 vs. 256 und die Auswahl nach Hauptteil/Kiai/Stern-/Abschnittsfehlern fehlen. Phase F trainierte Song-Passung bis Epoche 78; bester AUC-Wert 0,9557 in Epoche 56; Checkpoint ebenfalls nur im Nachtlaufordner.
