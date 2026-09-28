@@ -167,6 +167,27 @@ def load_reference(path=REFERENCE) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))["table"]
 
 
+MIN_RUNS = 30  # thinner table cells borrow from the neighbouring star levels
+
+
+def _reference_row(reference: dict, level: int, gap: int) -> dict | None:
+    rows = [reference.get(f"{level}/{gap}")]
+    if not rows[0] or rows[0]["runs"] < MIN_RUNS:
+        rows += [reference.get(f"{level - 1}/{gap}"), reference.get(f"{level + 1}/{gap}")]
+    rows = [r for r in rows if r and r["runs"]]
+    if not rows:
+        return None
+    runs = sum(r["runs"] for r in rows)
+    jump = sum(r["runs"] * r["jump_share"] for r in rows)
+    shapes: dict[str, float] = {}
+    for r in rows:
+        weight = r["runs"] * r["jump_share"]
+        for name, share in r["shapes"].items():
+            shapes[name] = shapes.get(name, 0.0) + weight * share
+    total = sum(shapes.values()) or 1.0
+    return {"runs": runs, "jump_share": jump / runs, "shapes": {k: v / total for k, v in shapes.items()}}
+
+
 def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
                 reference: dict | None = None, jump_scale: float = 1.0) -> np.ndarray:
     """shape_features for a rhythm that is not placed yet: every same-rhythm run of
@@ -178,7 +199,7 @@ def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
     out[:, 0] = 1.0
     level = int(np.clip(stars, 0, 9))
     for run in rhythm_runs(objects):
-        row = reference.get(f"{level}/{gap_class(objects, run)}")
+        row = _reference_row(reference, level, gap_class(objects, run))
         if not row or not row["shapes"] or rng.random() >= min(row["jump_share"] * jump_scale, 1.0):
             continue
         names = list(row["shapes"])
