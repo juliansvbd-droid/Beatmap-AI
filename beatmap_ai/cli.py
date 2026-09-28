@@ -62,6 +62,8 @@ def main(argv: list[str] | None = None) -> None:
                           "(experimental)")
     gen.add_argument("--no-shapes", dest="shapes", action="store_false",
                      help="v4 models: do not plan jump shapes (stars, squares ...)")
+    gen.add_argument("--shape-guide", action="store_true",
+                     help="v4 models: steer jumps to the planned shape's corners (experimental)")
     gen.add_argument("--shape-jumps", type=float, default=1.0,
                      help="v4 models: how often same-rhythm runs become jump shapes, relative "
                           "to ranked maps (default 1)")
@@ -157,6 +159,7 @@ def main(argv: list[str] | None = None) -> None:
             generator.JUMP_SCALE_MAX = 1.8
         generator.SHAPE_PLAN = args.shapes
         generator.SHAPE_JUMP_SCALE = args.shape_jumps
+        generator.SHAPE_GUIDE = args.shape_guide
         if args.device != "auto":
             summary = generator.device_summary()
             if args.device == "gpu" and summary == "Prozessor (CPU)":

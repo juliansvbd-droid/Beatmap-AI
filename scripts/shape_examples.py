@@ -15,7 +15,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from beatmap_ai.jump_shapes import SHAPES, object_shapes  # noqa: E402
+from beatmap_ai.jump_shapes import SHAPES, SWING_TOLERANCE, object_shapes  # noqa: E402
 from beatmap_ai.osu import parse_osu  # noqa: E402
 from beatmap_ai.placement_data import T, map_objects  # noqa: E402
 from beatmap_ai.style import star_rating  # noqa: E402
@@ -52,7 +52,7 @@ def gather(folders, generated: bool, per_bucket: int):
                 objects = map_objects(bm)
             except Exception:
                 continue
-            labels = object_shapes(objects, bm.cs)
+            labels = object_shapes(objects, bm.cs, SWING_TOLERANCE)
             maps[b] += 1
             counts[b]["objects"] += len(objects)
             for idx in np.flatnonzero(labels):

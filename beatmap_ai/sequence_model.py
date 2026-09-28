@@ -35,9 +35,9 @@ import torch.nn.functional as F
 from torch import nn
 
 from .osu import PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH, HitObject
-from .placement_data import (BAR, BEAT, BEND, BMASK, CIRCLE, CLAP, CMASK, CU, CV, END, FINISH,
+from .placement_data import (BAR, BEAT, BEND, BMASK, CIRCLE, CLAP, CMASK, CU, CV, END, EX, EY, FINISH,
                              HITSOUND_BITS, KIND, LEN, N_COLUMNS, NC, OFFSET_SCALE, OMASK, OU, OV,
-                             PATH_END, PATH_START, PHASE, SLIDER, SLIDES, T, VEL, WHISTLE, X)
+                             PATH_END, PATH_START, PHASE, SLIDER, SLIDES, T, VEL, WHISTLE, X, Y)
 from .placement_model import CausalBlock, mixture_nll
 from .sequence_data import (DURATION_CLASSES, FEATURES, GAP_CLASSES, REPEAT_CLASSES,  # noqa: F401
                             SECTION_CONTROLS, V3_FEATURES, V4_FEATURES, SequenceSampler, batch_stream,
@@ -478,6 +478,11 @@ class SequencePlacer:
         self.plan_shapes = False
         self.shape_jump_scale = 1.0
         self._no_shape = None
+        # Shape-guided placement: inside a planned run, pick the model's candidate closest
+        # to the shape's next corner (same distance, the shape's turn), else the corner.
+        self.shape_guide = False
+        self.shape_runs: dict[int, tuple[str, float, int, int]] = {}  # time -> (shape, dir, pos, run)
+        self.run_flip: dict[int, float] = {}  # run -> -1 once a shape had to be mirrored
 
     def in_bounds(self, x: float, y: float) -> bool:
         m = self.margin
@@ -634,11 +639,76 @@ class SequencePlacer:
             if not hasattr(item, "slides"):
                 item.slides = 1
         rows = np.stack([self._row(item) for item in queue])
+        runs = []
         planned = plan_shapes(rows, self.stars, np.random.default_rng(self.bend_seed),
-                              jump_scale=self.shape_jump_scale)
+                              jump_scale=self.shape_jump_scale, runs_out=runs)
         self.shape_plan = {int(round(float(r[T]))): f for r, f in zip(rows, planned)}
+        self.shape_runs = {int(round(float(rows[j, T]))): (shape, direction, pos, k)
+                           for k, (run, shape, direction) in enumerate(runs)
+                           for pos, j in enumerate(run)}
+        self.run_flip = {}
         self._no_shape = planned[0] * 0.0
         self._no_shape[0] = 1.0  # objects added later (doubles) are not in a jump run
+
+    def _shape_target(self, item, rows, i):
+        """(distance in px, turn in degrees or None, direction) for the next corner of a
+        planned shape, or None outside planned runs and before the run's second jump."""
+        from .jump_shapes import SHAPE_TURN, signed_turn
+        info = self.shape_runs.get(int(round(float(item.time))))
+        if info is None or item.kind != "circle" or i < 2:
+            return None
+        shape, direction, pos, run = info
+        if pos < 2 or shape == "other":
+            return None
+        a, b = rows[i - 2, [EX, EY]], rows[i - 1, [X, Y]]
+        distance = float(np.hypot(*(b - a)))
+        if distance < 20.0:
+            return None
+        direction = (direction or 1.0) * self.run_flip.get(run, 1.0)
+        before = signed_turn(rows[i - 3, [EX, EY]], a, b) if pos >= 3 and i >= 3 else None
+        if shape in SHAPE_TURN:
+            turn = direction * SHAPE_TURN[shape]
+        elif shape == "zigzag":
+            size = max(abs(before), 45.0) if before is not None else 60.0
+            turn = -float(np.sign(before or -1.0)) * min(size, 150.0)
+        elif shape == "back_and_forth":
+            turn = -float(np.sign(before or -1.0)) * 165.0
+        else:  # flow: even spacing, keep turning the same way, angle free
+            turn = None
+        return distance, turn, direction
+
+    def _guided_choice(self, mixture, target, walker, item, gap, scale, rng):
+        from .placement_model import Choice, sample_mixture
+        distance, turn, direction = target
+        best, best_score = None, float("inf")
+        for _ in range(48):
+            u, v = sample_mixture(mixture, rng, self.temperature) * OFFSET_SCALE
+            if not walker.fits(u * scale, v * scale, item.time, gap):
+                continue
+            d = math.hypot(u, v) * scale
+            angle = math.degrees(math.atan2(v, u))
+            score = abs(d - distance) / (0.1 * distance)
+            if turn is None:
+                good = np.sign(angle) == direction and 20.0 <= abs(angle) <= 120.0
+                score += 0.0 if good else 5.0
+            else:
+                score += abs((angle - turn + 180.0) % 360.0 - 180.0) / 15.0
+            if score < best_score:
+                best, best_score = (float(u), float(v)), score
+        if best is not None and best_score <= 2.0:
+            return Choice(best)
+        if turn is not None:
+            # The model had nothing close: the exact corner, if it fits, else the mirrored
+            # one (the rest of the run then turns the other way, as a mirrored shape).
+            for sign in (1.0, -1.0):
+                rad = math.radians(sign * turn)
+                u, v = distance / scale * math.cos(rad), distance / scale * math.sin(rad)
+                if walker.fits(u * scale, v * scale, item.time, gap):
+                    if sign < 0 and abs(turn) not in (0.0, 180.0):
+                        run = self.shape_runs[int(round(float(item.time)))][3]
+                        self.run_flip[run] = -self.run_flip.get(run, 1.0)
+                    return Choice((float(u), float(v)))
+        return Choice(best) if best is not None else None
 
     def _quarter(self, item) -> int:
         """Nearest quarter-beat tick of an object (plans may use a 1/2 grid)."""
@@ -719,7 +789,10 @@ class SequencePlacer:
 
         choice = fallback = None
         gap = (item.time - rows[i - 1, END]) / max(item.beat_length or 1.0, 1.0) if i else 8.0
-        for attempt in range(30):
+        target = self._shape_target(item, rows, i) if self.shape_guide else None
+        if target is not None:
+            choice = self._guided_choice(out["offset"], target, walker, item, gap, scale, rng)
+        for attempt in range(30 if choice is None else 0):
             temp = self.temperature * (1 + 0.05 * attempt)
             u, v = sample_mixture(out["offset"], rng, temp) * OFFSET_SCALE
             if i == 0 or walker.fits(u * scale, v * scale, item.time, gap):

@@ -26,9 +26,17 @@ PRIORITY = {name: i for i, name in enumerate(SHAPES)}
 POLYGONS = (("hexagon", 60.0), ("pentagon", 72.0), ("square", 90.0), ("triangle", 120.0),
             ("star", 144.0))
 WINDOW = 4  # moves per window
+# Generated maps can swing their 1/2 notes (rhythm.make_tick_grid): 160/184 ms instead of
+# 172/172. Gaps this close (in beats) still count as one rhythm where ``swing`` is allowed;
+# 1/4 against 1/3 (0.083 beats) stays apart. Training labels were made without it.
+SWING_TOLERANCE = 0.075
 
 
-def jump_runs(objects: np.ndarray, cs: float = 4.0) -> list[np.ndarray]:
+def _same_gap(gap: float, last: float, beat: float, swing: float) -> bool:
+    return abs(gap - last) <= max(0.12 * max(last, 1.0), swing * max(beat, 1.0))
+
+
+def jump_runs(objects: np.ndarray, cs: float = 4.0, swing: float = 0.0) -> list[np.ndarray]:
     """Indices of each run of >= WINDOW + 1 circles joined by same-rhythm jumps."""
     radius = 54.4 - 4.48 * float(cs)
     runs, current = [], []
@@ -39,7 +47,7 @@ def jump_runs(objects: np.ndarray, cs: float = 4.0) -> list[np.ndarray]:
         is_jump = (a[KIND] == CIRCLE and b[KIND] == CIRCLE
                    and math.hypot(b[X] - a[EX], b[Y] - a[EY]) > 1.5 * radius
                    and gap <= 2.0 * max(float(b[BEAT]), 1.0))
-        same = last_gap is not None and abs(gap - last_gap) <= 0.12 * max(last_gap, 1.0)
+        same = last_gap is not None and _same_gap(gap, last_gap, float(b[BEAT]), swing)
         if is_jump and current and same:
             current.append(i)
         else:
@@ -83,10 +91,10 @@ def classify(points: np.ndarray) -> str:
     return "other"
 
 
-def object_shapes(objects: np.ndarray, cs: float = 4.0) -> np.ndarray:
+def object_shapes(objects: np.ndarray, cs: float = 4.0, swing: float = 0.0) -> np.ndarray:
     """Shape index (into SHAPES) for every object; 0 ("none") outside jump runs."""
     out = np.zeros(len(objects), dtype=np.int64)
-    for run in jump_runs(objects, cs):
+    for run in jump_runs(objects, cs, swing):
         points = objects[run][:, [X, Y]].astype(np.float64)
         for start in range(len(run) - WINDOW):
             label = PRIORITY[classify(points[start:start + WINDOW + 1])]
@@ -130,7 +138,7 @@ def shape_features(objects: np.ndarray, cs: float = 4.0) -> np.ndarray:
     return out
 
 
-def rhythm_runs(objects: np.ndarray) -> list[np.ndarray]:
+def rhythm_runs(objects: np.ndarray, swing: float = SWING_TOLERANCE) -> list[np.ndarray]:
     """Indices of each run of >= WINDOW + 1 circles at one rhythm, judged on timing only:
     the places where a jump run *could* go (at generation, before anything is placed)."""
     runs, current = [], []
@@ -140,7 +148,7 @@ def rhythm_runs(objects: np.ndarray) -> list[np.ndarray]:
         gap = float(b[T] - a[END])
         fits = (a[KIND] == CIRCLE and b[KIND] == CIRCLE
                 and 0 < gap <= 2.0 * max(float(b[BEAT]), 1.0))
-        same = last_gap is not None and abs(gap - last_gap) <= 0.12 * max(last_gap, 1.0)
+        same = last_gap is not None and _same_gap(gap, last_gap, float(b[BEAT]), swing)
         if fits and current and same:
             current.append(i)
         else:
@@ -189,11 +197,12 @@ def _reference_row(reference: dict, level: int, gap: int) -> dict | None:
 
 
 def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
-                reference: dict | None = None, jump_scale: float = 1.0) -> np.ndarray:
+                reference: dict | None = None, jump_scale: float = 1.0,
+                runs_out: list | None = None) -> np.ndarray:
     """shape_features for a rhythm that is not placed yet: every same-rhythm run of
     circles becomes a jump run as often as in ranked maps of this star level and rhythm
     (times ``jump_scale``), with a shape drawn from their shapes. Everything else is
-    "none" (not a jump run)."""
+    "none" (not a jump run). ``runs_out`` receives (indices, shape, direction) per run."""
     reference = reference if reference is not None else load_reference()
     out = np.zeros((len(objects), SHAPE_FEATURES), dtype=np.float32)
     out[:, 0] = 1.0
@@ -207,6 +216,22 @@ def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
         shape = names[int(rng.choice(len(names), p=p / p.sum()))]
         out[run] = 0.0
         out[run, PRIORITY[shape]] = 1.0
+        direction = 0.0
         if shape in TURNING:
-            out[run, -1] = 1.0 if rng.random() < 0.5 else -1.0
+            direction = 1.0 if rng.random() < 0.5 else -1.0
+            out[run, -1] = direction
+        if runs_out is not None:
+            runs_out.append((run, shape, direction))
     return out
+
+
+# Turn per jump (degrees) of the shapes that have a fixed one, for shape-guided placement.
+SHAPE_TURN = {"line": 0.0, "arc": 30.0, "hexagon": 60.0, "pentagon": 72.0, "square": 90.0,
+              "triangle": 120.0, "star": 144.0}
+
+
+def signed_turn(a, b, c) -> float:
+    """Turn in degrees at b on the way a -> b -> c (sign as in ``classify``)."""
+    m1 = (b[0] - a[0], b[1] - a[1])
+    m2 = (c[0] - b[0], c[1] - b[1])
+    return math.degrees(math.atan2(m1[0] * m2[1] - m1[1] * m2[0], m1[0] * m2[0] + m1[1] * m2[1]))

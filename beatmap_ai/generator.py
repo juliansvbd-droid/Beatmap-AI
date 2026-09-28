@@ -29,6 +29,7 @@ JUMP_SCALE_MAX = 1.0
 # frequent. Ignored for models without shape inputs (v2, v3).
 SHAPE_PLAN = True
 SHAPE_JUMP_SCALE = 1.0
+SHAPE_GUIDE = False  # steer placement to the planned shape's corners (experimental)
 BUNDLED_MODEL = Path(__file__).parent / "models" / "rhythm.pt"
 BUNDLED_SEQUENCE = Path(__file__).parent / "models" / "sequence.pt"
 BUNDLED_PLACEMENT = Path(__file__).parent / "models" / "placement.pt"
@@ -248,6 +249,7 @@ def generate_beatmap(
                                 section_profile=section_profile, crutches=crutches)
         placer.plan_shapes = SHAPE_PLAN
         placer.shape_jump_scale = SHAPE_JUMP_SCALE
+        placer.shape_guide = SHAPE_GUIDE
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
                                           critic=critic if ranked else None,
                                           candidates=candidates, passes=passes)

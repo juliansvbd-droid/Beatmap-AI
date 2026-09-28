@@ -87,3 +87,13 @@ def test_v4_warm_start_matches_v3_without_shapes():
         a = old(x)["offset"]
         b = new(torch.cat([x, extra], dim=2))["offset"]
     assert torch.allclose(a, b, atol=1e-6)
+
+
+def test_rhythm_runs_accept_swung_half_notes():
+    from beatmap_ai.jump_shapes import jump_runs, rhythm_runs
+    o = _run_objects(_polygon(5, 2, n=8))
+    o[:, BEAT] = 343.6
+    o[:, T] = np.cumsum([0] + [160.0, 183.6] * 3 + [160.0])
+    o[:, END] = o[:, T]
+    assert [len(r) for r in rhythm_runs(o)] == [8]
+    assert jump_runs(o, 4.0) == []  # training labels: strict rhythm
