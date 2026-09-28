@@ -36,6 +36,9 @@ SHAPE_GUIDE = False  # steer placement to the planned shape's corners (experimen
 # 95th percentile of notes per second count as further from the target, and jumps may grow
 # up to HUMAN_DENSITY_JUMPS first. Off by default (the app's maps would change).
 HUMAN_DENSITY = False
+# Render the moves as they were placed during sampling (a playfield correction used to be
+# lost, bending every later move). Off by default: it changes the app's maps.
+FAITHFUL_RENDER = False
 HUMAN_DENSITY_JUMPS = 1.4
 # Notes per second of ranked maps (6,000 from the dataset, 28.09.): 95th percentile per
 # half star from 2 to 7.5.
@@ -276,6 +279,7 @@ def generate_beatmap(
         placer.plan_shapes = SHAPE_PLAN
         placer.shape_jump_scale = SHAPE_JUMP_SCALE
         placer.shape_guide = SHAPE_GUIDE
+        placer.faithful_render = FAITHFUL_RENDER
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
                                           critic=critic if ranked else None,
                                           candidates=candidates, passes=passes)

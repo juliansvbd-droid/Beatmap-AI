@@ -481,6 +481,7 @@ class SequencePlacer:
         # Shape-guided placement: inside a planned run, pick the model's candidate closest
         # to the shape's next corner (same distance, the shape's turn), else the corner.
         self.shape_guide = False
+        self.faithful_render = False  # store moves as placed (see _step_placement)
         self.shape_runs: dict[int, tuple[str, float, int, int]] = {}  # time -> (shape, dir, pos, run)
         self.run_flip: dict[int, float] = {}  # run -> -1 once a shape had to be mirrored
 
@@ -893,6 +894,13 @@ class SequencePlacer:
                 choice.path = np.clip(out["form"], -1.5, 1.5).reshape(-1, 2)
         choices.append(choice)
         walker.place(rows, i, item, choice, scale)
+        if self.faithful_render and rows[i, OMASK] > 0:
+            # Keep the move as actually placed. ``place`` turns or shortens a move that
+            # would leave the playfield, but the choice kept the drawn one; render() then
+            # redrew from those, and as every move is relative to the previous direction,
+            # one correction bent everything after it (shapes, even spacing).
+            choice.offset = (float(rows[i, OU]) * OFFSET_SCALE / scale,
+                             float(rows[i, OV]) * OFFSET_SCALE / scale)
         return out, rows
 
     def _edit_figures(self, item, out_plan, queue, k, gap_logits, drop_below, add_above, strong):
