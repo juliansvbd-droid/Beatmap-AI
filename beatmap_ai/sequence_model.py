@@ -658,8 +658,14 @@ class SequencePlacer:
         if info is None or item.kind != "circle" or i < 2:
             return None
         shape, direction, pos, run = info
-        if pos < 2 or shape == "other":
+        if shape == "other" or pos < 1:
             return None
+        if pos == 1:
+            # The first jump of the run fixes where the whole shape lies: a closed shape
+            # (turn >= 60 degrees) goes round a centre, which should be near the middle.
+            if shape not in SHAPE_TURN or SHAPE_TURN[shape] < 60.0:
+                return None
+            return "centre", SHAPE_TURN[shape], (direction or 1.0) * self.run_flip.get(run, 1.0)
         a, b = rows[i - 2, [EX, EY]], rows[i - 1, [X, Y]]
         distance = float(np.hypot(*(b - a)))
         if distance < 20.0:
@@ -672,13 +678,42 @@ class SequencePlacer:
             size = max(abs(before), 45.0) if before is not None else 60.0
             turn = -float(np.sign(before or -1.0)) * min(size, 150.0)
         elif shape == "back_and_forth":
-            turn = -float(np.sign(before or -1.0)) * 165.0
+            turn = -float(np.sign(before or -1.0)) * 172.0
         else:  # flow: even spacing, keep turning the same way, angle free
             turn = None
         return distance, turn, direction
 
+    def _centred_choice(self, mixture, turn, direction, walker, item, gap, scale, rng):
+        """First jump of a closed shape: of the model's candidates, the one whose shape
+        centre (chord of the circumscribed circle, turn = central angle) is nearest the
+        middle of the playfield."""
+        from .placement_data import rotate
+        from .placement_model import Choice, sample_mixture
+        best, best_score = None, float("inf")
+        half = math.radians(turn) / 2.0
+        for _ in range(32):
+            u, v = sample_mixture(mixture, rng, self.temperature) * OFFSET_SCALE
+            if not walker.fits(u * scale, v * scale, item.time, gap):
+                continue
+            dx, dy = rotate(u * scale, v * scale, walker.heading)
+            d = math.hypot(dx, dy)
+            if d < 20.0:
+                continue
+            # Centre: from the chord's midpoint, perpendicular towards the turning side.
+            depth = d / 2.0 / math.tan(half)
+            nx, ny = -dy / d * direction, dx / d * direction
+            cx = walker.end[0] + dx / 2.0 + nx * depth
+            cy = walker.end[1] + dy / 2.0 + ny * depth
+            radius = d / 2.0 / math.sin(half)
+            score = math.hypot(cx - PLAYFIELD_WIDTH / 2, cy - PLAYFIELD_HEIGHT / 2) + 2.0 * max(radius - 170.0, 0.0)
+            if score < best_score:
+                best, best_score = (float(u), float(v)), score
+        return Choice(best) if best is not None else None
+
     def _guided_choice(self, mixture, target, walker, item, gap, scale, rng):
         from .placement_model import Choice, sample_mixture
+        if target[0] == "centre":
+            return self._centred_choice(mixture, target[1], target[2], walker, item, gap, scale, rng)
         distance, turn, direction = target
         best, best_score = None, float("inf")
         for _ in range(48):
@@ -703,10 +738,12 @@ class SequencePlacer:
             for sign in (1.0, -1.0):
                 rad = math.radians(sign * turn)
                 u, v = distance / scale * math.cos(rad), distance / scale * math.sin(rad)
+                run = self.shape_runs[int(round(float(item.time)))][3]
+                if sign < 0 and (run in self.run_flip or abs(turn) in (0.0, 180.0)):
+                    break  # mirrored once already: a second flip would make a zigzag
                 if walker.fits(u * scale, v * scale, item.time, gap):
-                    if sign < 0 and abs(turn) not in (0.0, 180.0):
-                        run = self.shape_runs[int(round(float(item.time)))][3]
-                        self.run_flip[run] = -self.run_flip.get(run, 1.0)
+                    if sign < 0:
+                        self.run_flip[run] = -1.0
                     return Choice((float(u), float(v)))
         return Choice(best) if best is not None else None
 

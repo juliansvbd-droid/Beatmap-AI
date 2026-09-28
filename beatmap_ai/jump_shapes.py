@@ -176,6 +176,13 @@ def load_reference(path=REFERENCE) -> dict:
 
 
 MIN_RUNS = 30  # thinner table cells borrow from the neighbouring star levels
+# Share of all objects that ranked maps put in jump runs (scripts/shape_examples.py, 150
+# maps per bucket, 28.09.), for ``coverage="human"``. Not the default: generated rhythms
+# have more same-rhythm circle runs than ranked maps (fewer sliders) and the model jumps
+# them anyway, so capping the plan only left more of them shapeless (stars 17 % -> 9 % of
+# jump-run objects at 4.5-6*, humans 27 %; measured on 8 songs).
+COVERAGE_STARS = (2.0, 3.75, 5.25, 6.5)
+COVERAGE = (0.01, 0.057, 0.116, 0.197)
 
 
 def _reference_row(reference: dict, level: int, gap: int) -> dict | None:
@@ -198,22 +205,33 @@ def _reference_row(reference: dict, level: int, gap: int) -> dict | None:
 
 def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
                 reference: dict | None = None, jump_scale: float = 1.0,
-                runs_out: list | None = None) -> np.ndarray:
+                runs_out: list | None = None, coverage=None) -> np.ndarray:
     """shape_features for a rhythm that is not placed yet: every same-rhythm run of
     circles becomes a jump run as often as in ranked maps of this star level and rhythm
     (times ``jump_scale``), with a shape drawn from their shapes. Everything else is
-    "none" (not a jump run). ``runs_out`` receives (indices, shape, direction) per run."""
+    "none" (not a jump run). At most ``coverage`` of all objects are planned (default all;
+    "human": as many as ranked maps of this star level have in jump runs). ``runs_out`` receives (indices, shape, direction) per run."""
     reference = reference if reference is not None else load_reference()
     out = np.zeros((len(objects), SHAPE_FEATURES), dtype=np.float32)
     out[:, 0] = 1.0
     level = int(np.clip(stars, 0, 9))
-    for run in rhythm_runs(objects):
+    if coverage is None:
+        coverage = 1.0
+    elif coverage == "human":
+        coverage = float(np.interp(stars, COVERAGE_STARS, COVERAGE))
+    budget = coverage * len(objects) * jump_scale
+    runs = rhythm_runs(objects)
+    for k in rng.permutation(len(runs)):
+        run = runs[k]
+        if len(run) > budget:
+            continue
         row = _reference_row(reference, level, gap_class(objects, run))
         if not row or not row["shapes"] or rng.random() >= min(row["jump_share"] * jump_scale, 1.0):
             continue
         names = list(row["shapes"])
         p = np.asarray([row["shapes"][n] for n in names], dtype=np.float64)
         shape = names[int(rng.choice(len(names), p=p / p.sum()))]
+        budget -= len(run)
         out[run] = 0.0
         out[run, PRIORITY[shape]] = 1.0
         direction = 0.0
@@ -222,6 +240,8 @@ def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
             out[run, -1] = direction
         if runs_out is not None:
             runs_out.append((run, shape, direction))
+    if runs_out is not None:
+        runs_out.sort(key=lambda item: int(item[0][0]))
     return out
 
 

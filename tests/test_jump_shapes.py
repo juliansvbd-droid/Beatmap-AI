@@ -63,9 +63,11 @@ def test_plan_shapes_uses_the_reference_table():
     from beatmap_ai.jump_shapes import plan_shapes
     o = _run_objects(np.zeros((8, 2)) + 256)  # positions do not matter for the plan
     table = {"5/2": {"jump_share": 1.0, "runs": 1, "shapes": {"square": 1.0}}}
-    f = plan_shapes(o, 5.2, np.random.default_rng(0), table)
+    f = plan_shapes(o, 5.2, np.random.default_rng(0), table, coverage=1.0)
     assert np.all(f[:, SHAPES.index("square")] == 1) and np.all(np.abs(f[:, -1]) == 1)
-    none = plan_shapes(o, 5.2, np.random.default_rng(0), table, jump_scale=0.0)
+    none = plan_shapes(o, 5.2, np.random.default_rng(0), table, jump_scale=0.0, coverage=1.0)
+    assert np.all(none[:, 0] == 1) and np.all(none[:, 1:] == 0)
+    none = plan_shapes(o, 5.2, np.random.default_rng(0), table, coverage="human")  # over budget
     assert np.all(none[:, 0] == 1) and np.all(none[:, 1:] == 0)
 
 
