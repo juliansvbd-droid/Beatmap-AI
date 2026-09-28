@@ -658,7 +658,7 @@ class SequencePlacer:
         if info is None or item.kind != "circle" or i < 2:
             return None
         shape, direction, pos, run = info
-        if shape == "other" or pos < 1:
+        if pos < 1 or (shape == "other" and pos < 2):
             return None
         if pos == 1:
             # The first jump of the run fixes where the whole shape lies: a closed shape
@@ -672,6 +672,10 @@ class SequencePlacer:
             return None
         direction = (direction or 1.0) * self.run_flip.get(run, 1.0)
         before = signed_turn(rows[i - 3, [EX, EY]], a, b) if pos >= 3 and i >= 3 else None
+        if shape == "other":
+            # Left to the model, runs planned as irregular came out as pentagons (44 of
+            # 158 polygon objects on 8 songs): keep them irregular.
+            return "irregular", distance, before
         if shape in SHAPE_TURN:
             turn = direction * SHAPE_TURN[shape]
         elif shape == "zigzag":
@@ -681,7 +685,7 @@ class SequencePlacer:
             turn = -float(np.sign(before or -1.0)) * 172.0
         else:  # flow: even spacing, keep turning the same way, angle free
             turn = None
-        return distance, turn, direction
+        return distance, turn, direction, before
 
     def _centred_choice(self, mixture, turn, direction, walker, item, gap, scale, rng):
         """First jump of a closed shape: of the model's candidates, the one whose shape
@@ -710,11 +714,29 @@ class SequencePlacer:
                 best, best_score = (float(u), float(v)), score
         return Choice(best) if best is not None else None
 
+    def _irregular_choice(self, mixture, distance, before, walker, item, gap, scale, rng):
+        """A run planned as irregular ("other"): a random fitting candidate that breaks the
+        regularity (another turn or another distance), else None (the model's own choice)."""
+        from .placement_model import Choice, sample_mixture
+        options = []
+        for _ in range(32):
+            u, v = sample_mixture(mixture, rng, self.temperature) * OFFSET_SCALE
+            if not walker.fits(u * scale, v * scale, item.time, gap):
+                continue
+            d = math.hypot(u, v) * scale
+            angle = math.degrees(math.atan2(v, u))
+            if abs(d - distance) >= 0.25 * distance or (
+                    before is not None and abs(angle - before) >= 20.0):
+                options.append((float(u), float(v)))
+        return Choice(options[int(rng.integers(len(options)))]) if options else None
+
     def _guided_choice(self, mixture, target, walker, item, gap, scale, rng):
         from .placement_model import Choice, sample_mixture
         if target[0] == "centre":
             return self._centred_choice(mixture, target[1], target[2], walker, item, gap, scale, rng)
-        distance, turn, direction = target
+        if target[0] == "irregular":
+            return self._irregular_choice(mixture, target[1], target[2], walker, item, gap, scale, rng)
+        distance, turn, direction, before = target
         best, best_score = None, float("inf")
         loose = []  # flow: every fitting candidate turning the right way at a similar distance
         for _ in range(48):
@@ -727,7 +749,10 @@ class SequencePlacer:
             if turn is None:
                 good = np.sign(angle) == direction and 20.0 <= abs(angle) <= 120.0
                 score += 0.0 if good else 5.0
-                if good and abs(d - distance) <= 0.2 * distance:
+                # Mappers' flow varies its angle; the same angle again and again drew
+                # regular hexagons and pentagons (88 of 158 polygon objects on 8 songs).
+                varied = before is None or abs(abs(angle) - abs(before)) >= 15.0
+                if good and varied and abs(d - distance) <= 0.2 * distance:
                     loose.append((float(u), float(v)))
             else:
                 score += abs((angle - turn + 180.0) % 360.0 - 180.0) / 15.0

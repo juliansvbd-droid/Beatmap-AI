@@ -30,6 +30,32 @@ JUMP_SCALE_MAX = 1.0
 SHAPE_PLAN = True
 SHAPE_JUMP_SCALE = 1.0
 SHAPE_GUIDE = False  # steer placement to the planned shape's corners (experimental)
+# Human note density: on some songs the star search reached the target with far more
+# notes than ranked maps have (5.5*: 6.1-6.8 notes/s and 0-2 % sliders; ranked 95th
+# percentile 5.8, median slider share ~40 %). With HUMAN_DENSITY, maps above the ranked
+# 95th percentile of notes per second count as further from the target, and jumps may grow
+# up to HUMAN_DENSITY_JUMPS first. Off by default (the app's maps would change).
+HUMAN_DENSITY = False
+HUMAN_DENSITY_JUMPS = 1.4
+# Notes per second of ranked maps (6,000 from the dataset, 28.09.): 95th percentile per
+# half star from 2 to 7.5.
+NPS_P95_STARS = (2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25, 5.75, 6.25, 6.75, 7.25)
+NPS_P95 = (2.25, 2.63, 3.20, 3.54, 4.16, 4.65, 5.01, 5.84, 6.18, 6.90, 7.42)
+
+
+def notes_per_second(bm: Beatmap) -> float:
+    objects = [o for o in bm.hit_objects if o.kind != "spinner"]
+    if len(objects) < 2:
+        return 0.0
+    return len(objects) / max((objects[-1].time - objects[0].time) / 1000.0, 1.0)
+
+
+def density_penalty(bm: Beatmap, stars: float) -> float:
+    """Stars-equivalent distance added for density above the ranked 95th percentile."""
+    if not HUMAN_DENSITY:
+        return 0.0
+    cap = float(np.interp(stars, NPS_P95_STARS, NPS_P95))
+    return 2.0 * max(notes_per_second(bm) / cap - 1.0, 0.0)
 BUNDLED_MODEL = Path(__file__).parent / "models" / "rhythm.pt"
 BUNDLED_SEQUENCE = Path(__file__).parent / "models" / "sequence.pt"
 BUNDLED_PLACEMENT = Path(__file__).parent / "models" / "placement.pt"
@@ -318,13 +344,14 @@ def generate_beatmap(
             scale = float(np.clip(scale * wanted_jump / jump, 0.4, 2.5))
         return scale
 
-    best = (abs(reached - stars), reached, bm)
+    best = (abs(reached - stars) + density_penalty(bm, stars), reached, bm)
 
     def consider(candidate: Beatmap) -> float:
         nonlocal best
         actual = star_rating(candidate.to_osu_string())
-        if abs(actual - stars) < best[0]:
-            best = (abs(actual - stars), actual, candidate)
+        distance = abs(actual - stars) + density_penalty(candidate, stars)
+        if distance < best[0]:
+            best = (distance, actual, candidate)
         return actual
 
     if sequence:
@@ -344,8 +371,9 @@ def generate_beatmap(
                 chosen.update(k=steer["k"], plan=candidate_plan, jump=jump)
             return actual
 
-        if reached < stars and JUMP_SCALE_MAX > 1.0:
-            lo, hi = 1.0, JUMP_SCALE_MAX
+        jump_max = max(JUMP_SCALE_MAX, HUMAN_DENSITY_JUMPS if HUMAN_DENSITY else 1.0)
+        if reached < stars and jump_max > 1.0:
+            lo, hi = 1.0, jump_max
             for _ in range(5):
                 if best[0] < 0.1:
                     break
