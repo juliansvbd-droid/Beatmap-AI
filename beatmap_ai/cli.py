@@ -60,6 +60,11 @@ def main(argv: list[str] | None = None) -> None:
     gen.add_argument("--jumps-first", action="store_true",
                      help="reach higher star targets with bigger jumps before more notes "
                           "(experimental)")
+    gen.add_argument("--no-shapes", dest="shapes", action="store_false",
+                     help="v4 models: do not plan jump shapes (stars, squares ...)")
+    gen.add_argument("--shape-jumps", type=float, default=1.0,
+                     help="v4 models: how often same-rhythm runs become jump shapes, relative "
+                          "to ranked maps (default 1)")
     gen.add_argument("--device", choices=("auto", "gpu", "cpu"), default="auto",
                      help="run the models on the graphics card if there is one (auto, gpu: "
                           "NVIDIA via CUDA or AMD via ROCm) or on the processor only (cpu)")
@@ -150,6 +155,8 @@ def main(argv: list[str] | None = None) -> None:
         generator.DEVICE_PREFERENCE = args.device
         if args.jumps_first:
             generator.JUMP_SCALE_MAX = 1.8
+        generator.SHAPE_PLAN = args.shapes
+        generator.SHAPE_JUMP_SCALE = args.shape_jumps
         if args.device != "auto":
             summary = generator.device_summary()
             if args.device == "gpu" and summary == "Prozessor (CPU)":

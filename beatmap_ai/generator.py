@@ -24,6 +24,11 @@ MAX_COMBO = 16
 # Largest factor on the placement's moves when a map is too easy (step 1 of the star
 # search). 1.0 = off (default until the user's blind test decides); --jumps-first: 1.8.
 JUMP_SCALE_MAX = 1.0
+# v4 models (trained with jump shapes): plan stars, squares ... per same-rhythm run as
+# often as ranked maps of the star level do; SHAPE_JUMP_SCALE makes jump runs more or less
+# frequent. Ignored for models without shape inputs (v2, v3).
+SHAPE_PLAN = True
+SHAPE_JUMP_SCALE = 1.0
 BUNDLED_MODEL = Path(__file__).parent / "models" / "rhythm.pt"
 BUNDLED_SEQUENCE = Path(__file__).parent / "models" / "sequence.pt"
 BUNDLED_PLACEMENT = Path(__file__).parent / "models" / "placement.pt"
@@ -241,6 +246,8 @@ def generate_beatmap(
                                 style_tags(style), scores, quarter, threshold,
                                 np.random.default_rng(seed + 1000), sv_at=sv_at,
                                 section_profile=section_profile, crutches=crutches)
+        placer.plan_shapes = SHAPE_PLAN
+        placer.shape_jump_scale = SHAPE_JUMP_SCALE
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
                                           critic=critic if ranked else None,
                                           candidates=candidates, passes=passes)

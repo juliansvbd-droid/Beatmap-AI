@@ -40,7 +40,7 @@ from .placement_data import (BAR, BEAT, BEND, BMASK, CIRCLE, CLAP, CMASK, CU, CV
                              PATH_END, PATH_START, PHASE, SLIDER, SLIDES, T, VEL, WHISTLE, X)
 from .placement_model import CausalBlock, mixture_nll
 from .sequence_data import (DURATION_CLASSES, FEATURES, GAP_CLASSES, REPEAT_CLASSES,  # noqa: F401
-                            SECTION_CONTROLS, V3_FEATURES, SequenceSampler, batch_stream,
+                            SECTION_CONTROLS, V3_FEATURES, V4_FEATURES, SequenceSampler, batch_stream,
                             build_sequence_maps, share_maps)
 
 
@@ -217,6 +217,20 @@ def load_sequence(path, device="cpu") -> SequenceNet:
     return model.to(device).eval()
 
 
+def warm_start(model: SequenceNet, path) -> None:
+    """Load a checkpoint with fewer input features: the extra inputs start at zero, so the
+    model begins exactly as the old one and learns to use them."""
+    state = torch.load(path, map_location="cpu", weights_only=True)["state_dict"]
+    own = model.state_dict()
+    old = state["inp.0.weight"]
+    if old.shape[1] > own["inp.0.weight"].shape[1]:
+        raise ValueError("checkpoint has more input features than the new model")
+    weight = torch.zeros_like(own["inp.0.weight"])
+    weight[:, :old.shape[1]] = old
+    state["inp.0.weight"] = weight
+    model.load_state_dict(state)
+
+
 def is_sequence_checkpoint(path) -> bool:
     try:
         return torch.load(path, map_location="cpu", weights_only=True).get("kind") in {
@@ -294,9 +308,14 @@ def train_sequence_v3(data_dirs, out_path, tag_files=(), epochs: int = 60,
                       hidden: int = 512, layers: int = 8, context: int = 256,
                       device: str | None = None, seed: int = 0, workers: int = 2,
                       resume: bool = True, tagger_path=None,
-                      deadline=None,
+                      deadline=None, shapes: bool = False, init_from=None, patience: int | None = None,
                       log=partial(print, flush=True)) -> Path:
     """Train v3 and keep a resumable last state after every epoch.
+
+    ``shapes`` trains v4: every object also gets its jump shape (jump_shapes) as input,
+    so that generation can ask for stars, squares ... ``init_from`` starts from a trained
+    v3 checkpoint of the same size (the new shape inputs start at zero). ``patience`` stops
+    after that many epochs without a better validation loss.
 
     The v2 model definition and its bundled weights remain loadable. ``out_path`` is
     an experiment checkpoint path and is never copied into the application model folder.
@@ -311,22 +330,28 @@ def train_sequence_v3(data_dirs, out_path, tag_files=(), epochs: int = 60,
     if not train_maps or not val_maps:
         raise ValueError("v3 needs both train and held-out validation maps")
     context = max(32, int(context))
-    sampler = SequenceSampler(val_maps, context, seed + 1, hide=False, v3=True)
+    sampler = SequenceSampler(val_maps, context, seed + 1, hide=False, v3=True, shapes=shapes)
     val_batches = [{k: torch.from_numpy(v) for k, v in sampler.batch(batch_size).items()}
                    for _ in range(6)]
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     shared = share_maps(train_maps, out_path.with_suffix(".objects.npy"))
     del maps, train_maps, val_maps, sampler
-    loader = batch_stream(shared, context, batch_size, seed, workers=workers, v3=True)
-    model = SequenceV3Net(features=V3_FEATURES, hidden=hidden, layers=layers, context=context).to(device)
+    loader = batch_stream(shared, context, batch_size, seed, workers=workers, v3=True, shapes=shapes)
+    features = V4_FEATURES if shapes else V3_FEATURES
+    model = SequenceV3Net(features=features, hidden=hidden, layers=layers, context=context)
+    if init_from:
+        warm_start(model, init_from)
+        log(f"started from {init_from}")
+    model = model.to(device)
     params = sum(p.numel() for p in model.parameters())
-    log(f"sequence v3: {params / 1e6:.2f}M parameters on {device}; context={context}")
+    log(f"sequence {'v4 (shapes)' if shapes else 'v3'}: {params / 1e6:.2f}M parameters on {device}; "
+        f"context={context}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     total_steps = max(epochs * steps_per_epoch, 1)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=lr * 0.05)
     last_path = out_path.with_name(out_path.stem + ".last.pt")
-    start_epoch, best = 0, float("inf")
+    start_epoch, best, best_epoch = 0, float("inf"), 0
     if resume and last_path.exists():
         try:
             state = torch.load(last_path, map_location="cpu", weights_only=False)
@@ -334,6 +359,7 @@ def train_sequence_v3(data_dirs, out_path, tag_files=(), epochs: int = 60,
             optimizer.load_state_dict(state["optimizer"])
             scheduler.load_state_dict(state["scheduler"])
             start_epoch, best = int(state["epoch"]), float(state["best"])
+            best_epoch = int(state.get("best_epoch", start_epoch))
             log(f"resuming v3 from epoch {start_epoch}, best validation {best:.4f}")
         except (OSError, RuntimeError, KeyError, ValueError) as exc:
             log(f"resume checkpoint ignored ({type(exc).__name__}: {exc})")
@@ -368,13 +394,16 @@ def train_sequence_v3(data_dirs, out_path, tag_files=(), epochs: int = 60,
         val = validate()
         log(f"v3 epoch {epoch}/{epochs}: train={np.mean(losses):.4f}, val={val:.4f}")
         if val < best:
-            best = val
-            save_sequence(model, out_path, {"val_loss": val})
+            best, best_epoch = val, epoch
+            save_sequence(model, out_path, {"val_loss": val, "epoch": epoch})
         tmp = last_path.with_suffix(last_path.suffix + ".tmp")
-        torch.save({"epoch": epoch, "best": best,
+        torch.save({"epoch": epoch, "best": best, "best_epoch": best_epoch,
                     "model": {k: v.detach().cpu() for k, v in model.state_dict().items()},
                     "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict()}, tmp)
         tmp.replace(last_path)
+        if patience and epoch - best_epoch >= patience:
+            log(f"no better validation for {patience} epochs (best: epoch {best_epoch}); stopping")
+            break
     if not out_path.exists():
         save_sequence(model, out_path)
     log(f"v3 saved: best={best:.4f}; best={out_path}; resumable={last_path}")
@@ -443,6 +472,12 @@ class SequencePlacer:
         # per combo, ranked ~4.4; measured 27.09. on 5 songs), and new combos feed back into
         # placement (more sharp turns). Off until it is calibrated; the bar rule decides.
         self.learned_combos = False
+        # v4: jump shape per object time, from jump_shapes.plan_shapes (``follow``). Empty =
+        # shapes unknown (as for v3 and in training windows without shapes).
+        self.shape_plan: dict[int, np.ndarray] = {}
+        self.plan_shapes = False
+        self.shape_jump_scale = 1.0
+        self._no_shape = None
 
     def in_bounds(self, x: float, y: float) -> bool:
         m = self.margin
@@ -466,7 +501,14 @@ class SequencePlacer:
                     raw = [section.get(key, 0.0) for key in keys]
                 values = np.asarray(raw, dtype=np.float32).ravel()
                 controls[i, :min(len(values), SECTION_CONTROLS)] = values[:SECTION_CONTROLS]
-        return np.concatenate([base, controls], axis=1)
+        if self.model.config["features"] <= V3_FEATURES:
+            return np.concatenate([base, controls], axis=1)
+        from .jump_shapes import SHAPE_FEATURES
+        shapes = np.zeros((len(rows), SHAPE_FEATURES), dtype=np.float32)
+        if self.shape_plan:
+            for i, row in enumerate(rows):
+                shapes[i] = self.shape_plan.get(int(round(float(row[T]))), self._no_shape)
+        return np.concatenate([base, controls, shapes], axis=1)
 
     def _row(self, item) -> np.ndarray:
         row = np.zeros(N_COLUMNS, dtype=np.float32)
@@ -585,6 +627,18 @@ class SequencePlacer:
             combo = self.rng.random() < 1.0 / (1.0 + math.exp(-float(out["combo"])))
             plan.append(self._item(tick, kind, duration, slides, combo))
         return plan, choices
+
+    def _plan_shapes(self, queue) -> None:
+        from .jump_shapes import plan_shapes
+        for item in queue:
+            if not hasattr(item, "slides"):
+                item.slides = 1
+        rows = np.stack([self._row(item) for item in queue])
+        planned = plan_shapes(rows, self.stars, np.random.default_rng(self.bend_seed),
+                              jump_scale=self.shape_jump_scale)
+        self.shape_plan = {int(round(float(r[T]))): f for r, f in zip(rows, planned)}
+        self._no_shape = planned[0] * 0.0
+        self._no_shape[0] = 1.0  # objects added later (doubles) are not in a jump run
 
     def _quarter(self, item) -> int:
         """Nearest quarter-beat tick of an object (plans may use a 1/2 grid)."""
@@ -726,6 +780,8 @@ class SequencePlacer:
         evaluated and the best one selected (Best-of-N). Returns (plan, choices)."""
         from .placement_model import _Walker
         queue = sorted((p for p in plan if p.kind != "spinner"), key=lambda p: p.time)
+        if self.plan_shapes and self.model.config["features"] > V3_FEATURES and queue:
+            self._plan_shapes(queue)
         out_plan, choices = [], []
         rows = np.zeros((len(queue) * 2 + 64, N_COLUMNS), dtype=np.float32)
         walker = _Walker(self)

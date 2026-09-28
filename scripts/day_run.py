@@ -29,6 +29,11 @@ def main() -> None:
     parser.add_argument("--v3-hours", type=float, default=3.0)
     parser.add_argument("--planner-minutes", type=float, default=15.0)
     parser.add_argument("--out", default=None)
+    parser.add_argument("--shapes", action="store_true",
+                        help="train v4: jump shapes as input (writes sequence-v4.pt)")
+    parser.add_argument("--init-from", default=None, help="start from this v3 checkpoint")
+    parser.add_argument("--patience", type=int, default=None,
+                        help="stop after this many epochs without a better validation loss")
     args = parser.parse_args()
     out = Path(args.out or f"D:/BeatMap-AI-Dataset/day/{datetime.now():%Y-%m-%d}")
     out.mkdir(parents=True, exist_ok=True)
@@ -47,13 +52,18 @@ def main() -> None:
     from beatmap_ai.sequence_model import train_sequence_v3
     v3_deadline = start + args.v3_hours * 3600.0
     try:
-        train_sequence_v3(data_dirs(), out / "sequence-v3.pt", tag_files(), epochs=1000,
+        name = "sequence-v4.pt" if args.shapes else "sequence-v3.pt"
+        train_sequence_v3(data_dirs(), out / name, tag_files(), epochs=1000,
                           steps_per_epoch=500, batch_size=8, hidden=512, layers=8, context=256,
                           device="cuda", workers=4, tagger_path=tagger, deadline=v3_deadline,
+                          shapes=args.shapes, init_from=args.init_from, patience=args.patience,
                           log=log)
     except Exception as exc:  # keep going to the planner; the last v3 state is on disk
         log(f"v3 stopped with an error: {exc!r}")
 
+    if args.planner_minutes <= 0:
+        log(f"day run finished after {(time.time() - start) / 3600:.2f} h (no planner)")
+        return
     import gc
     import torch
     gc.collect()

@@ -21,6 +21,7 @@ from .placement_data import (BAR, BEAT, CIRCLE, CLAP, CMASK, CU, CV, END, EX, EY
                              SLIDES, T, WHISTLE,
                              VEL, X, Y, PlacementMap, WindowSampler, augment_objects,
                              build_placement_maps)
+from .jump_shapes import SHAPE_FEATURES, shape_features
 from .style import encode_conditions
 
 CONDITIONS = ("density", "stars", "jump", "stream", "sliders")
@@ -175,6 +176,16 @@ def sequence_features(objects: np.ndarray, mel: np.ndarray, cs: float, cond: np.
 FEATURES = (2 + 3 + 3 + 1 + 1 + 1 + 4 + 1 + 1 + 2 + 2 + 2 + 2 + 80 + 1 + 3
             + 2 * len(CONDITIONS) + len(TAGS) + 1 + 40 * LOOKAHEAD)
 V3_FEATURES = FEATURES + SECTION_CONTROLS
+V4_FEATURES = V3_FEATURES + SHAPE_FEATURES  # v4: jump shape of every object (jump_shapes)
+SHAPE_MARGIN = 12  # objects read around a window so that runs at its edges keep their shape
+SHAPE_HIDE = 0.3  # share of training windows without shapes (generation without a plan)
+
+
+def window_shapes(objects: np.ndarray, start: int, count: int, cs: float) -> np.ndarray:
+    """shape_features for objects[start:start + count], judged with their neighbours."""
+    lo = max(start - SHAPE_MARGIN, 0)
+    features = shape_features(objects[lo:start + count + SHAPE_MARGIN], cs)
+    return features[start - lo:start - lo + count]
 
 
 def section_controls(objects: np.ndarray, start: int, count: int, stars: float,
@@ -412,9 +423,11 @@ class SequenceSampler(WindowSampler):
     """Windows of objects with style, tag and rhythm targets. One extra object past the
     window supplies the last object's "next" targets."""
 
-    def __init__(self, maps, context: int, seed: int = 0, hide: bool = True, v3: bool = False):
+    def __init__(self, maps, context: int, seed: int = 0, hide: bool = True, v3: bool = False,
+                 shapes: bool = False):
         super().__init__(maps, context, seed, hide)
-        self.v3 = v3
+        self.v3 = v3 or shapes
+        self.shapes = shapes
         if v3:
             self.weights = _v3_sampling_weights(self.maps)
 
@@ -437,10 +450,12 @@ class SequenceSampler(WindowSampler):
             m = self.maps[int(self.rng.choice(len(self.maps), p=self.weights))]
             start = int(self.rng.integers(max(len(m.objects) - self.context, 0) + 1))
             objects = m.objects[start:start + self.context + 1]
+            mirrored = False
             if self.hide:
                 flip_x = bool(self.rng.integers(2))
                 flip_y = bool(self.rng.integers(2))
                 objects = augment_objects(objects, flip_x, flip_y)
+                mirrored = flip_x != flip_y
             window = objects[:self.context]
             x = sequence_features(window, self.mel(m.mel_path), m.cs, self.conditions(m),
                                   self.energy(m.mel_path))
@@ -450,6 +465,13 @@ class SequenceSampler(WindowSampler):
                 if self.hide and self.rng.random() < 0.4:
                     local[:] = 0.0
                 x = np.concatenate([x, local], axis=1)
+            if self.shapes:
+                shape = window_shapes(m.objects, start, len(window), m.cs)
+                if mirrored:
+                    shape[:, -1] *= -1.0  # a mirror image turns the other way
+                if self.hide and self.rng.random() < SHAPE_HIDE:
+                    shape[:] = 0.0
+                x = np.concatenate([x, shape], axis=1)
             targets = {k: v[:len(window)] for k, v in rhythm_targets(objects).items()}
             pad = self.context - len(window)
             items = {"x": np.pad(x, ((0, pad), (0, 0))), "y": np.pad(window, ((0, pad), (0, 0))),
@@ -503,8 +525,10 @@ def share_maps(maps: list[SequenceMap], path: Path) -> SharedMaps:
 
 class SharedSampler(SequenceSampler):
     def __init__(self, shared: SharedMaps, context: int, seed: int = 0, hide: bool = True,
-                 v3: bool = False):
+                 v3: bool = False, shapes: bool = False):
         self.shared = shared
+        self.shapes = shapes
+        v3 = v3 or shapes
         refs = [r for r in shared.refs if r.end - r.start >= 16]
         self.maps = refs
         self.context = context
@@ -538,6 +562,11 @@ class SharedSampler(SequenceSampler):
                 if self.hide and self.rng.random() < 0.4:
                     local[:] = 0.0
                 x = np.concatenate([x, local], axis=1)
+            if self.shapes:
+                shape = window_shapes(self.shared.objects(ref), start, len(window), ref.cs)
+                if self.hide and self.rng.random() < SHAPE_HIDE:
+                    shape[:] = 0.0
+                x = np.concatenate([x, shape], axis=1)
             targets = {k: v[:len(window)] for k, v in rhythm_targets(objects).items()}
             pad = self.context - len(window)
             items = {"x": np.pad(x, ((0, pad), (0, 0))), "y": np.pad(window, ((0, pad), (0, 0))),
@@ -553,9 +582,9 @@ _worker = None
 
 
 def _init_worker(shared: SharedMaps, context: int, batch_size: int, seed: int,
-                 v3: bool = False) -> None:
+                 v3: bool = False, shapes: bool = False) -> None:
     global _worker
-    _worker = (SharedSampler(shared, context, seed + os.getpid(), v3=v3), batch_size)
+    _worker = (SharedSampler(shared, context, seed + os.getpid(), v3=v3, shapes=shapes), batch_size)
 
 
 def _make_batch(_=None) -> dict[str, np.ndarray]:
@@ -566,14 +595,14 @@ def _make_batch(_=None) -> dict[str, np.ndarray]:
 
 
 def batch_stream(shared: SharedMaps, context: int, batch_size: int, seed: int, workers: int = 4,
-                 prefetch: int = 8, v3: bool = False):
+                 prefetch: int = 8, v3: bool = False, shapes: bool = False):
     """Endless training batches from ``workers`` processes (or this one with 0)."""
     if workers <= 0:
-        _init_worker(shared, context, batch_size, seed, v3=v3)
+        _init_worker(shared, context, batch_size, seed, v3=v3, shapes=shapes)
         while True:
             yield _make_batch()
     pool = multiprocessing.get_context("spawn").Pool(
-        workers, initializer=_init_worker, initargs=(shared, context, batch_size, seed, v3))
+        workers, initializer=_init_worker, initargs=(shared, context, batch_size, seed, v3, shapes))
     pending = deque(pool.apply_async(_make_batch) for _ in range(prefetch))
     try:
         while True:

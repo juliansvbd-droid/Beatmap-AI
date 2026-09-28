@@ -32,3 +32,58 @@ def test_every_circle_of_a_star_run_is_labelled_star():
     o[:, EX], o[:, EY] = points[:, 0], points[:, 1]
     labels = object_shapes(o, 4.0)
     assert [SHAPES[i] for i in labels] == ["star"] * 10
+
+
+def _run_objects(points, gap=250.0):
+    o = np.zeros((len(points), N_COLUMNS), dtype=np.float32)
+    o[:, T] = np.arange(len(points)) * gap
+    o[:, END] = o[:, T]
+    o[:, BEAT] = 500.0
+    o[:, KIND] = CIRCLE
+    o[:, X], o[:, Y] = points[:, 0], points[:, 1]
+    o[:, EX], o[:, EY] = points[:, 0], points[:, 1]
+    return o
+
+
+def test_shape_features_carry_rotation_direction():
+    from beatmap_ai.jump_shapes import SHAPE_FEATURES, shape_features
+    o = _run_objects(_polygon(5, 2, n=10))
+    f = shape_features(o, 4.0)
+    assert f.shape == (10, SHAPE_FEATURES)
+    assert np.all(f[:, SHAPES.index("star")] == 1)
+    mirrored = o.copy()
+    mirrored[:, X] = 512 - mirrored[:, X]
+    mirrored[:, EX] = mirrored[:, X]
+    g = shape_features(mirrored, 4.0)
+    assert set(f[:, -1]) == {f[0, -1]} and f[0, -1] != 0
+    assert np.all(g[:, -1] == -f[:, -1])
+
+
+def test_plan_shapes_uses_the_reference_table():
+    from beatmap_ai.jump_shapes import plan_shapes
+    o = _run_objects(np.zeros((8, 2)) + 256)  # positions do not matter for the plan
+    table = {"5/2": {"jump_share": 1.0, "runs": 1, "shapes": {"square": 1.0}}}
+    f = plan_shapes(o, 5.2, np.random.default_rng(0), table)
+    assert np.all(f[:, SHAPES.index("square")] == 1) and np.all(np.abs(f[:, -1]) == 1)
+    none = plan_shapes(o, 5.2, np.random.default_rng(0), table, jump_scale=0.0)
+    assert np.all(none[:, 0] == 1) and np.all(none[:, 1:] == 0)
+
+
+def test_v4_warm_start_matches_v3_without_shapes():
+    import torch
+    from beatmap_ai.sequence_data import V3_FEATURES, V4_FEATURES
+    from beatmap_ai.sequence_model import SequenceV3Net, save_sequence, warm_start
+    torch.manual_seed(0)
+    old = SequenceV3Net(features=V3_FEATURES, hidden=32, layers=1, heads=2, context=16).eval()
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "v3.pt"
+        save_sequence(old, path)
+        new = SequenceV3Net(features=V4_FEATURES, hidden=32, layers=1, heads=2, context=16).eval()
+        warm_start(new, path)
+    x = torch.randn(1, 5, V3_FEATURES)
+    extra = torch.randn(1, 5, V4_FEATURES - V3_FEATURES)
+    with torch.no_grad():
+        a = old(x)["offset"]
+        b = new(torch.cat([x, extra], dim=2))["offset"]
+    assert torch.allclose(a, b, atol=1e-6)

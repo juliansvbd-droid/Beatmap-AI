@@ -11,7 +11,9 @@ run are classified; each circle takes the most specific shape among its windows.
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 
@@ -90,4 +92,100 @@ def object_shapes(objects: np.ndarray, cs: float = 4.0) -> np.ndarray:
             label = PRIORITY[classify(points[start:start + WINDOW + 1])]
             span = run[start:start + WINDOW + 1]
             out[span] = np.maximum(out[span], label)
+    return out
+
+
+# Same-sign shapes, for which the rotation direction is part of the shape.
+TURNING = frozenset(("arc", "flow", "triangle", "square", "pentagon", "hexagon", "star"))
+SHAPE_FEATURES = len(SHAPES) + 1  # one-hot shape, then rotation direction (+1 / -1 / 0)
+
+
+def run_direction(points: np.ndarray) -> float:
+    """+1 or -1 for the run's main turning direction, 0 when it does not keep one."""
+    moves = np.diff(points, axis=0)
+    cross = moves[:-1, 0] * moves[1:, 1] - moves[:-1, 1] * moves[1:, 0]
+    total = float(np.sign(cross).sum())
+    return float(np.sign(total)) if abs(total) >= 0.6 * max(len(cross), 1) else 0.0
+
+
+def shape_features(objects: np.ndarray, cs: float = 4.0) -> np.ndarray:
+    """Model input per object: one-hot shape and the rotation direction of its run.
+
+    An all-zero row means "shape unknown" (hidden in training, no plan at generation);
+    one-hot "none" means explicitly "not in a jump run"."""
+    out = np.zeros((len(objects), SHAPE_FEATURES), dtype=np.float32)
+    if not len(objects):
+        return out
+    labels = np.zeros(len(objects), dtype=np.int64)
+    for run in jump_runs(objects, cs):
+        points = objects[run][:, [X, Y]].astype(np.float64)
+        for start in range(len(run) - WINDOW):
+            label = PRIORITY[classify(points[start:start + WINDOW + 1])]
+            span = run[start:start + WINDOW + 1]
+            labels[span] = np.maximum(labels[span], label)
+        direction = run_direction(points)
+        turning = np.isin(labels[run], [PRIORITY[s] for s in TURNING])
+        out[run[turning], -1] = direction
+    out[np.arange(len(objects)), labels] = 1.0
+    return out
+
+
+def rhythm_runs(objects: np.ndarray) -> list[np.ndarray]:
+    """Indices of each run of >= WINDOW + 1 circles at one rhythm, judged on timing only:
+    the places where a jump run *could* go (at generation, before anything is placed)."""
+    runs, current = [], []
+    last_gap = None
+    for i in range(1, len(objects)):
+        a, b = objects[i - 1], objects[i]
+        gap = float(b[T] - a[END])
+        fits = (a[KIND] == CIRCLE and b[KIND] == CIRCLE
+                and 0 < gap <= 2.0 * max(float(b[BEAT]), 1.0))
+        same = last_gap is not None and abs(gap - last_gap) <= 0.12 * max(last_gap, 1.0)
+        if fits and current and same:
+            current.append(i)
+        else:
+            if len(current) >= WINDOW + 1:
+                runs.append(np.asarray(current))
+            current = [i - 1, i] if fits else []
+        last_gap = gap if fits else None
+    if len(current) >= WINDOW + 1:
+        runs.append(np.asarray(current))
+    return runs
+
+
+def gap_class(objects: np.ndarray, run: np.ndarray) -> int:
+    """Rhythm of a run in quarter beats (1, 2, 3, 4; 4 also for anything slower)."""
+    a, b = objects[run[0]], objects[run[1]]
+    return int(np.clip(round(float(b[T] - a[END]) / max(float(b[BEAT]), 1.0) * 4), 1, 4))
+
+
+REFERENCE = Path(__file__).with_name("shape_reference.json")
+
+
+def load_reference(path=REFERENCE) -> dict:
+    """Table of scripts/shape_reference.py: {"<stars>/<gap>": {"jump_share", "shapes"}}."""
+    return json.loads(Path(path).read_text(encoding="utf-8"))["table"]
+
+
+def plan_shapes(objects: np.ndarray, stars: float, rng: np.random.Generator,
+                reference: dict | None = None, jump_scale: float = 1.0) -> np.ndarray:
+    """shape_features for a rhythm that is not placed yet: every same-rhythm run of
+    circles becomes a jump run as often as in ranked maps of this star level and rhythm
+    (times ``jump_scale``), with a shape drawn from their shapes. Everything else is
+    "none" (not a jump run)."""
+    reference = reference if reference is not None else load_reference()
+    out = np.zeros((len(objects), SHAPE_FEATURES), dtype=np.float32)
+    out[:, 0] = 1.0
+    level = int(np.clip(stars, 0, 9))
+    for run in rhythm_runs(objects):
+        row = reference.get(f"{level}/{gap_class(objects, run)}")
+        if not row or not row["shapes"] or rng.random() >= min(row["jump_share"] * jump_scale, 1.0):
+            continue
+        names = list(row["shapes"])
+        p = np.asarray([row["shapes"][n] for n in names], dtype=np.float64)
+        shape = names[int(rng.choice(len(names), p=p / p.sum()))]
+        out[run] = 0.0
+        out[run, PRIORITY[shape]] = 1.0
+        if shape in TURNING:
+            out[run, -1] = 1.0 if rng.random() < 0.5 else -1.0
     return out
