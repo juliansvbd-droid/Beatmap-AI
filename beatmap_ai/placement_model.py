@@ -84,6 +84,7 @@ from .placement_data import (  # noqa: F401  (re-exported for older imports)
 # Give the model the current heading when placing (see _Walker.heading_into). Off: the
 # trained models place better without it.
 FEED_HEADING = False
+FIRST_OBJECT_RADIUS = 170.0  # px from the centre at most for a map's first object
 
 # --------------------------------------------------------------------------------------
 # Model
@@ -525,6 +526,17 @@ class _Walker:
         from .placement import slider_path
         u, v = choice.offset
         u, v = u * scale, v * scale
+        if not self.recent and i == 0:
+            # The first object has no move to learn from in training (no previous object),
+            # so its drawn offset from the centre was arbitrary and maps often began in a
+            # corner. Ranked maps start 170 px from the centre (median), 90 % within 241 px.
+            # Limited to an ellipse shaped like the playfield (170 x 128 px), so it never
+            # lands at an edge either.
+            dx, dy = rotate(u, v, self.heading)
+            reach = math.hypot(dx / FIRST_OBJECT_RADIUS,
+                               dy / (FIRST_OBJECT_RADIUS * PLAYFIELD_HEIGHT / PLAYFIELD_WIDTH))
+            if reach > 1.0:
+                u, v = u / reach, v / reach
         rows[i, HCOS], rows[i, HSIN] = math.cos(self.heading), math.sin(self.heading)
         # Out of the playfield (after scaling): turn the offset until it fits, then shrink.
         for turn in [0.0] + [s * k * math.radians(15) for k in range(1, 13) for s in (1, -1)]:
