@@ -3,6 +3,13 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-29 nachts – Claude Code (Opus 5.5): Formführung verfeinert, Dichte
+- Vielecke gezügelt (flow mit wechselnden Winkeln, „other“ bleibt unregelmäßig), `--human-density`
+  (Dichte-Deckel + Sprünge bis 1,4×, aus per Default). 15-Song-Vergleich in STATUS: v4 +
+  `--shape-guide` ist der beste Kandidat; Dichte-Problem nur mit Sprüngen lösbar, die aber die
+  Abstände ungleich machen (offen). Sols pattern_deviation ist für seltene Formen ungeeignet.
+- Commits `4987f74`, `ac9f1f7`, Doku `675310f` + dieser. App (v2) unverändert, alles opt-in.
+
 ## 2026-09-28 ~11:00 – Claude Code (Opus 5.5): v4 trainiert, Formführung
 - v4 (Formen als Eingabe) trainiert und gemessen, siehe STATUS oben. Allein kaum Formen in Maps;
   `--shape-guide` (Kandidatenwahl nach Formecke, Zentrierung, max. 1 Spiegelung) bringt Sterne

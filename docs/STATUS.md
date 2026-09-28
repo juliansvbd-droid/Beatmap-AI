@@ -36,8 +36,26 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
     weiter vom Ziel, Sprünge dürfen erst bis 1,4× wachsen. Ergebnis (8 Songs): Expert-Ausreißer
     27–30 → 22–24/100, dichteste Maps wieder mit Slidern (ECLIPSER 6,75 → 3,3 Noten/s);
     Insane-Ausreißer schwanken zwischen Läufen 21–29 (Rauschen bei 8 Maps).
-  - Deshalb läuft ein Vergleich auf allen 15 Songs (v3+Vorplanung / v4+shape-guide /
-    v4+shape-guide+human-density), Ergebnis im WORKLOG.
+  - **Vergleich auf allen 15 Songs × Insane/Expert (29.09. nachts)**, alle mit Vorplanung:
+
+    | | v3 | v4+shape-guide | +human-density (Sprünge ≤1,4×) | +human-density ohne Sprünge |
+    |---|---|---|---|---|
+    | P95-Ausreißer/100 Expert | 28,0 | 32,1 | **25,7** | 31,5 |
+    | P95-Ausreißer/100 Insane | 21,5 | **19,5** | 21,7 | 21,9 |
+    | 4,5–6★ Sterne je 100 Obj. Median/Mittel (Mensch 1,7/3,7) | 0/0,2 | **1,9/4,2** | 4,9/6,0 | 1,6/4,7 |
+    | 4,5–6★ Maps mit Sternen (Mensch 62 %) | 5 % | 60 % | 68 % | 58 % |
+    | 4,5–6★ Vielecke je 100 Obj. (Mensch 0,7) | 2,9 | 2,9 | 2,7 | 2,6 |
+    | 4,5–6★ gleiche Abstände (Mensch 67 %) | 73 % | **76 %** | 46 % ⚠ | 74 % |
+    | Maps dichter als menschliches P95 (von 30) | 12 | 11 | **2** | 11 |
+    | Noten/s Mittel / Slider-Anteil | 4,70 / 22 % | 4,53 / 25 % | 3,99 / 27 % | 4,48 / 25 % |
+
+    Fazit: **v4 + `--shape-guide` ist der beste Kandidat** (Formen wie Menschen, Abstände gleichmäßig,
+    Ausreißer ≈ v3). Die zu hohe Dichte (40 % der Maps über menschlichem P95) lässt sich nur mit
+    größeren Sprüngen lösen; die machen die Abstände aber ungleich (vermutlich Rand: 1,4× Sprung ×
+    bis 1,18× Feinabstimmung → `_Walker.place` dreht/schrumpft). Nächster Schritt: formgeführte
+    Sprünge am Rand verkürzen statt verbiegen, dann `--human-density` erneut messen. 3–4,5★ hat noch
+    zu viele Sprungfolgen (Mensch 5 % der Objekte, wir 15–20 %) und damit zu viele Sterne/Vielecke.
+    Mess-Maps: Scratchpad `v4eval/flat_*` (s1–s15), Skripte `per_map_shapes.py`, `p95_summary.py`.
 - **Blindtests beendet (Nutzer, 28.09.):** Ab jetzt entscheidet Claude über Messwerte.
   Blindtest 3 aufgelöst (ohne ALQUIMIA Expert): v3+Vorplanung 2× vorne, nie hinten;
   v2 1× vorne; v3+Vorplanung+jumps-first 2× hinten.
