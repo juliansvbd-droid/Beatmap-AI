@@ -3,6 +3,14 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-28 ~11:00 – Claude Code (Opus 5.5): v4 trainiert, Formführung
+- v4 (Formen als Eingabe) trainiert und gemessen, siehe STATUS oben. Allein kaum Formen in Maps;
+  `--shape-guide` (Kandidatenwahl nach Formecke, Zentrierung, max. 1 Spiegelung) bringt Sterne
+  auf 20 % bei 4,5–6★. Swing-Bug im Formplan behoben. Nutzer macht keine Blindtests mehr,
+  Entscheidungen über Messwerte (`scripts/shape_examples.py`, `scripts/jump_geometry.py`).
+- Commits `452bbc6`, `9aa6da8`, `cf3976a`, `d6272c3`. Alles opt-in, App (v2) unverändert.
+- Mess-Maps: Scratchpad `v4eval/flat_*` (nicht im Repo).
+
 ## 2026-09-28 – Claude Code (Opus 5.5): Sprungformen, erster Schritt zu v4
 - Erste Note startet jetzt im Mittelbereich (`b8284fa`, Nutzer: Maps starten fast immer in der Ecke).
 - `beatmap_ai/jump_shapes.py` + Tests, `scripts/shape_examples.py`, `scripts/jump_geometry.py`

@@ -4,14 +4,25 @@ _Zuletzt aktualisiert: 2026-09-28 Europe/Berlin, von Claude Code (Opus 5.5)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
-- **28.09. läuft: v4-Training (GPU)** – `scripts/day_run.py --shapes --init-from
-  D:\BeatMap-AI-Dataset\day\2026-09-27\sequence-v3.pt --v3-hours 5 --planner-minutes 0 --patience 25`,
-  Ausgabe `D:\BeatMap-AI-Dataset\day\2026-09-28-v4\` (`sequence-v4.pt`, Log `day_run.log`).
-  Keinen zweiten PyTorch-/GPU-Lauf und keine volle pytest-Runde starten, bis es fertig ist.
-- v4 = v3 + Sprungform je Objekt als Eingabe (one-hot + Drehrichtung, `jump_shapes.shape_features`,
-  in 30 % der Fenster versteckt). Generierung plant Formen je Kreisfolge gleichen Rhythmus aus
-  `beatmap_ai/shape_reference.json` (`scripts/shape_reference.py`, 300 menschliche Maps je Stern);
-  CLI `--no-shapes`, `--shape-jumps`. Nur für Modelle mit Formeingabe; App (v2) unverändert.
+- **28.09., Claude Code: nichts läuft.** v4 fertig trainiert (4,26 h, Warmstart von v3, Stopp
+  nach 25 Epochen ohne Verbesserung, bester Stand Epoche 220): `D:\BeatMap-AI-Dataset\day\2026-09-28-v4\sequence-v4.pt`
+  (26,14 Mio. Parameter, 851 Eingaben). Auf 320 gleichen Validierungsfenstern: v3 1,488,
+  v4 ohne Formen 1,175, v4 mit Formen 1,131 – der Großteil ist Weitertraining (v3 war untertrainiert).
+- **v4 allein setzt Formen kaum um** (Sterne 4 % der Sprungfolgen-Objekte bei 4,5–6★, Mensch 27 %).
+  Deshalb `--shape-guide` (aus per Default): in geplanten Folgen wählt der Placer den
+  Modellvorschlag, der der nächsten Ecke am nächsten ist (gleicher Abstand, Formwinkel), sonst
+  die exakte bzw. einmal gespiegelte Ecke; geschlossene Formen werden beim ersten Sprung mittig
+  angesetzt. Stand auf 8 Songs × Insane/Expert (v4 + Vorplanung + `--shape-guide`):
+  4,5–6★ Sterne 20 % (Mensch 27 %, v3 1 %), other 23 % (27 %), Zickzack 10 % (6 %), Fünf-/Sechsecke
+  zusammen 15 % (Mensch 3 %, zu viel), gleiche Abstände 73 % (Mensch 67 %, v3 69 %).
+  3–4,5★ (nur 5 Maps): zu viele Quadrate/Fünfecke. P95-Ausreißer noch nicht gemessen.
+- Bug gefunden: Der Formplan fand auf Songs mit Swing (1/2-Noten 160/184 ms) keine Folgen;
+  `rhythm_runs` erlaubt jetzt 0,075 Beats Abweichung (Trainings-Labels unverändert).
+- Unsere Maps haben ~2× so viele Sprungfolgen wie Menschen (v3 genauso): der Rhythmus macht zu
+  wenige Slider (Expert z. B. 553 Kreise / 10 Slider). Deckelung des Formplans
+  (`plan_shapes(coverage="human")`) half nicht, ist nur Option.
+- Nächste Schritte: Fünf-/Sechsecke aus „flow“-Führung zügeln, P95/compare_maps messen, dann
+  Entscheidung, ob v4 + shape-guide in die App (als Option) kommt; Slideranteil des Rhythmus prüfen.
 - **Blindtests beendet (Nutzer, 28.09.):** Ab jetzt entscheidet Claude über Messwerte.
   Blindtest 3 aufgelöst (ohne ALQUIMIA Expert): v3+Vorplanung 2× vorne, nie hinten;
   v2 1× vorne; v3+Vorplanung+jumps-first 2× hinten.
