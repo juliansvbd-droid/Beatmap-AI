@@ -149,6 +149,31 @@ class SequenceNet(nn.Module):
         return out, new_cache
 
 
+    def extend(self, x: torch.Tensor, start: int,
+               kv_cache: list[tuple[torch.Tensor, torch.Tensor]] | None = None
+               ) -> tuple[dict[str, torch.Tensor], list[tuple[torch.Tensor, torch.Tensor]]]:
+        """Evaluate tokens x (B, t, D) at positions start .. start + t - 1 (all within the
+        context) after the cached tokens 0 .. start - 1. Same result as ``forward`` on the
+        whole prefix, for the last t tokens."""
+        t = x.shape[1]
+        h = self.inp(x) + self.pos[start:start + t]
+        mask = self.mask[start:start + t]  # rows: new tokens; CausalBlock cuts the columns
+        new_cache = []
+        for i, block in enumerate(self.blocks):
+            past = kv_cache[i] if kv_cache else None
+            h, cache = block(h, mask, kv_cache=past, use_cache=True)
+            new_cache.append(cache)
+        h = self.norm(h)
+        out = {"offset": self.offset_head(h), "chord": self.chord_head(h),
+               "bend": self.bend_head(h)[..., 0], "hitsound": self.hitsound_head(h),
+               "gap": self.gap_head(h), "kind": self.kind_head(h),
+               "duration": self.duration_head(h), "repeat": self.repeat_head(h),
+               "combo": self.combo_head(h)[..., 0]}
+        if self.form_head is not None:
+            out["form"] = self.form_head(h)
+        return out, new_cache
+
+
 class SequenceV3Net(SequenceNet):
     """Sequence model with a learned eight-point slider path head."""
 
@@ -483,6 +508,8 @@ class SequencePlacer:
         self.shape_guide = False
         self.faithful_render = False  # store moves as placed (see _step_placement)
         self.control_jump = 1.0  # multiplies the section jump-size control (v3/v4 inputs)
+        self._feature_cache: dict[tuple, np.ndarray] = {}  # see _model_features
+        self.kv_cache = True  # see _evaluate
         self.shape_runs: dict[int, tuple[str, float, int, int]] = {}  # time -> (shape, dir, pos, run)
         self.run_flip: dict[int, float] = {}  # run -> -1 once a shape had to be mirrored
 
@@ -491,6 +518,46 @@ class SequencePlacer:
         return m <= x <= PLAYFIELD_WIDTH - m and m <= y <= PLAYFIELD_HEIGHT - m
 
     def _model_features(self, rows: np.ndarray) -> np.ndarray:
+        """Model input for a window of rows, one row at a time from a cache.
+
+        A row's input depends only on itself and the row before (and on being the window's
+        first row), so it is the same at every later step once both are placed. Computing
+        the whole window again at every step took about a fifth of the generation time."""
+        out = np.empty((len(rows), self.model.config["features"]), dtype=np.float32)
+        cache = self._feature_cache
+        for j in range(len(rows)):
+            key = (rows[j].tobytes(),) if j == 0 else (rows[j - 1].tobytes(), rows[j].tobytes())
+            row = cache.get(key)
+            if row is None:
+                row = self._window_features(rows[max(j - 1, 0):j + 1])[-1]
+                cache[key] = row
+            out[j] = row
+        return out
+
+    def _evaluate(self, rows: np.ndarray, i: int, walker) -> dict[str, torch.Tensor]:
+        """Model outputs for object i (the last token of its window).
+
+        Within the context the earlier tokens are cached (walker.kv): object i - 1 only has
+        its final input once placed, so it is fed again together with object i, and object
+        i is dropped from the cache again. Evaluating the whole window at every step cost
+        about half of the generation time. Beyond the context the window slides (every
+        position changes), so it is evaluated whole."""
+        context = self.model.config["context"]
+        cached = getattr(walker, "kv", None)
+        if not self.kv_cache or i >= context:
+            walker.kv = None
+            x = self._model_features(rows[max(0, i - context + 1):i + 1])
+            return self.model(torch.from_numpy(x)[None].to(self.device))
+        if cached is None or cached[0] != max(i - 1, 0):
+            start, past = 0, None  # (re)build the cache from the first object
+        else:
+            start, past = max(i - 1, 0), cached[1]
+        x = self._model_features(rows[:i + 1])[start:]
+        raw, cache = self.model.extend(torch.from_numpy(x)[None].to(self.device), start, past)
+        walker.kv = (i, [(k[:, :, :-1], v[:, :, :-1]) for k, v in cache])
+        return {k: v[:, -1:] for k, v in raw.items()}
+
+    def _window_features(self, rows: np.ndarray) -> np.ndarray:
         from .sequence_data import sequence_features
         base = sequence_features(rows, self.features.mel, self.preset.cs, self.cond, self.energy)
         if self.model.config["features"] <= FEATURES:
@@ -833,8 +900,7 @@ class SequencePlacer:
         else:
             rows = np.vstack([rows, row])
         walker.heading_into(rows, i)
-        x = self._model_features(rows[max(0, i - context + 1):i + 1])
-        raw = self.model(torch.from_numpy(x)[None].to(self.device))
+        raw = self._evaluate(rows, i, walker)
         o_len = raw["offset"].shape[-1]
         h_len = raw["hitsound"].shape[-1]
         c_len = raw["chord"].shape[-1]
@@ -936,6 +1002,7 @@ class SequencePlacer:
         evaluated and the best one selected (Best-of-N). Returns (plan, choices)."""
         from .placement_model import _Walker
         queue = sorted((p for p in plan if p.kind != "spinner"), key=lambda p: p.time)
+        self._feature_cache = {}  # the shape plan and controls may differ per call
         if self.plan_shapes and self.model.config["features"] > V3_FEATURES and queue:
             self._plan_shapes(queue)
         out_plan, choices = [], []
