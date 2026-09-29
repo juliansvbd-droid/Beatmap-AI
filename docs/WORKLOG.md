@@ -12,7 +12,7 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 - Danach: `--faithful-render` (`4a83096`), `--jump-control` (`be896ae`); Kernbefund: Menschen
   mappen 5–6★ mit weniger Noten und viel größeren, schärferen Sprüngen (Tabelle in STATUS).
 - `--jump-control` bis 3× (`55117e9`) ist die beste Kombination (Ausreißer unter v3); Maps in
-  `D:\BeatMap-AI-Dataset4-kandidat-2026-09-29\`. Offen: Vielecke, 1/2-Sprünge noch < Mensch,
+  `D:\BeatMap-AI-Dataset\v4-kandidat-2026-09-29\`. Offen: Vielecke, 1/2-Sprünge noch < Mensch,
   Übernahme in die App (Nutzer fragen).
 
 ## 2026-09-28 ~11:00 – Claude Code (Opus 5.5): v4 trainiert, Formführung
