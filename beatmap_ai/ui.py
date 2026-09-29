@@ -41,6 +41,17 @@ CRITIC_CHOICES = (
     ("Neu (v2, von Luna)", Path(__file__).parent / "models" / "critic-v2.pt"),
     ("Aus", None),
 )
+# Placement model. "v4 Formen" (29.09.): sequence v4 with the pre-planner, planned jump
+# shapes, ranked note density and bigger jumps through the jump-size control -- on 15 songs
+# fewer P95 outliers than v3 (Expert 19.8 vs 28.0) and stars/density close to ranked maps
+# (docs/STATUS.md). v2 stays the default until the user decides otherwise.
+MODELS = Path(__file__).parent / "models"
+PLACEMENT_CHOICES = (
+    ("v2 (Standard)", ()),
+    ("v4 Formen (neu, Sterne und größere Sprünge)",
+     ("--sequence", str(MODELS / "sequence-v4.pt"), "--planner", str(MODELS / "planner.pt"),
+      "--shape-guide", "--human-density", "--jump-control")),
+)
 # Where the models run when generating (the CLI's --device).
 DEVICE_CHOICES = (
     ("Automatisch", "auto"),
@@ -340,6 +351,7 @@ class BeatmapApp(tk.Tk):
         self.variety_var = tk.DoubleVar(value=50)
         self.variety_label = tk.StringVar(value="50 %")
         self.critic_var = tk.StringVar(value=CRITIC_CHOICES[0][0])
+        self.placement_var = tk.StringVar(value=PLACEMENT_CHOICES[0][0])
         self.device_var = tk.StringVar(value=DEVICE_CHOICES[0][0])
         self.hardware_var = tk.StringVar(value="Hardware wird erkannt …")
         self.passes_var = tk.IntVar(value=1)
@@ -405,6 +417,12 @@ class BeatmapApp(tk.Tk):
                  font=("Segoe UI", 9)).pack(side="left")
         tk.Label(variety_row, textvariable=self.variety_label, bg=SURFACE, fg=MUTED,
                  font=("Segoe UI", 9), width=5).pack(side="left", padx=(6, 0))
+        placement_row = ttk.Frame(card, style="Card.TFrame")
+        placement_row.pack(fill="x", pady=(10, 0))
+        tk.Label(placement_row, text="Platzierungs-KI", bg=SURFACE, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(side="left")
+        ttk.Combobox(placement_row, textvariable=self.placement_var, state="readonly", width=40,
+                     values=[label for label, _ in PLACEMENT_CHOICES]).pack(side="left", padx=(8, 0))
         critic_row = ttk.Frame(card, style="Card.TFrame")
         critic_row.pack(fill="x", pady=(10, 0))
         tk.Label(critic_row, text="Bewerter-KI (wählt die menschlichste von 4 Platzierungen)",
@@ -966,6 +984,13 @@ class BeatmapApp(tk.Tk):
                 messagebox.showinfo("Sequence v3", "Aktiviere zuerst ‚KI verwenden‘, um Sequence v3 zu nutzen.", parent=self)
                 return
             args.extend(("--no-model", "--rule-placement"))
+        elif dict(PLACEMENT_CHOICES)[self.placement_var.get()]:
+            placement = dict(PLACEMENT_CHOICES)[self.placement_var.get()]
+            missing = [part for part in placement if part.endswith(".pt") and not Path(part).is_file()]
+            if missing:
+                messagebox.showerror("Modell fehlt", "Nicht gefunden: " + ", ".join(missing), parent=self)
+                return
+            args.extend(placement)
         elif self.sequence_v3_var.get():
             checkpoint_text = self.sequence_v3_path_var.get().strip()
             checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text else None
@@ -987,7 +1012,7 @@ class BeatmapApp(tk.Tk):
             messagebox.showerror("Durchgänge prüfen", "Bitte wähle 1 bis 4 Durchgänge.", parent=self)
             return
         args.extend(("--passes", str(passes)))
-        if self.planner_var.get():
+        if self.planner_var.get() and "--planner" not in args:
             planner_paths = sorted(Path("D:/BeatMap-AI-Dataset/night").glob("*/planner.best.pt"),
                                    key=lambda p: p.stat().st_mtime, reverse=True)
             if not planner_paths:
