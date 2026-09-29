@@ -133,6 +133,10 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 - Trainingsplan, Morgenbericht und Importhilfe liegen im Trainingsordner. Noch nicht importiert: osu! lief nicht und wurde nicht gestartet. PC-Wachhalter ist zurückgesetzt; geschützte Konfigurationen blieben unverändert.
 
 ## Was die App gerade benutzt (`Start BeatMap AI.bat` → `.venv-rocm`)
+- **Seit 29.09.: Auswahl „Platzierungs-KI“** in der App: „v2 (Standard)“ (unverändert) oder
+  „v4 Formen“ = `beatmap_ai/models/sequence-v4.pt` (fp16-Kopie) + `models/planner.pt` +
+  `--shape-guide --human-density --jump-control`. Hinweis: bei manchen Songs trifft v4 Formen den
+  Sternwert nicht ganz (z. B. GUERREIRO Expert 5,1★ statt 5,6★), weil die Dichte-Grenze Vorrang hat.
 | Aufgabe | Datei | Parameter | Stand |
 |---|---|---|---|
 | Rhythmus (wann Noten kommen) | `beatmap_ai/models/rhythm.pt` | 6,06 Mio. | Conformer v4, 10.387 Songs, Schwellen je Sternbereich |

@@ -3,6 +3,10 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-29 morgens – Claude Code (Opus 5.5): v4 Formen in der App
+- Nutzer hat zugestimmt: Dropdown „Platzierungs-KI“ (v2 Standard / v4 Formen), Modelle in
+  `beatmap_ai/models/` (v4 als fp16, 52 MB). Volle Tests 65 bestanden. Commit `cc86f8d`.
+
 ## 2026-09-29 nachts – Claude Code (Opus 5.5): Formführung verfeinert, Dichte
 - Vielecke gezügelt (flow mit wechselnden Winkeln, „other“ bleibt unregelmäßig), `--human-density`
   (Dichte-Deckel + Sprünge bis 1,4×, aus per Default). 15-Song-Vergleich in STATUS: v4 +
