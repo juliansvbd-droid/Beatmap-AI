@@ -355,6 +355,7 @@ class BeatmapApp(tk.Tk):
         self.device_var = tk.StringVar(value=DEVICE_CHOICES[0][0])
         self.hardware_var = tk.StringVar(value="Hardware wird erkannt …")
         self.passes_var = tk.IntVar(value=1)
+        self.songfit_var = tk.BooleanVar(value=False)
         self.sequence_model_info_var = tk.StringVar(
             value="Platzierung: siehe „Platzierungs-KI“ (Standard v2; „v4 Formen“ bringt die Vorplanung mit).")
 
@@ -445,6 +446,8 @@ class BeatmapApp(tk.Tk):
                  font=("Segoe UI", 9)).pack(side="left")
         tk.Spinbox(pass_row, from_=1, to=4, width=4, textvariable=self.passes_var,
                    justify="center").pack(side="left", padx=(8, 12))
+        ttk.Checkbutton(pass_row, text="Song-Passungs-KI mitbewerten lassen (experimentell)",
+                        variable=self.songfit_var).pack(side="left")
 
         card = self._card(self.generate_page, "3. Ausgabe und Extras",
                           "Leere Metadatenfelder werden automatisch aus dem Dateinamen ausgefüllt.")
@@ -963,6 +966,13 @@ class BeatmapApp(tk.Tk):
             messagebox.showerror("Durchgänge prüfen", "Bitte wähle 1 bis 4 Durchgänge.", parent=self)
             return
         args.extend(("--passes", str(passes)))
+        if self.songfit_var.get() and self.use_model_var.get():
+            # Night run 26./27.09. (AUC 0.956); blends with the critic when choosing between
+            # placements. Not measured on generated maps yet.
+            if not (MODELS / "songfit.pt").is_file():
+                messagebox.showerror("Modell fehlt", f"Nicht gefunden: {MODELS / 'songfit.pt'}", parent=self)
+                return
+            args.extend(("--songfit", str(MODELS / "songfit.pt")))
         args.extend(("--device", dict(DEVICE_CHOICES)[self.device_var.get()]))
         critic = dict(CRITIC_CHOICES)[self.critic_var.get()]
         if critic is None:
