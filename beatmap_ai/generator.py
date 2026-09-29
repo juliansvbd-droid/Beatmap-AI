@@ -43,6 +43,11 @@ FAITHFUL_RENDER = False
 # (needs the pre-planner) instead of scaling the positions it reads while placing: scaled
 # positions are outside what it learned, and even spacing fell from 76 % to 46-53 %.
 JUMP_BY_CONTROL = False
+# The model follows the control only partly (1/2 jumps 117 / 143 / 174 px at 1x / 2x / 3x on
+# one 5.6* song), so this path may go up to 3x. 15 songs with --shape-guide --human-density:
+# Expert P95 outliers 19.8 per 100 objects (v3 + pre-planner 28.0), Insane 20.5 (21.5),
+# 5-6*: 4.5 notes/s and 140 px 1/2 jumps (ranked 4.0 and 190; v3 5.8 and 98).
+CONTROL_JUMPS = 3.0
 HUMAN_DENSITY_JUMPS = 1.4
 # Notes per second of ranked maps (6,000 from the dataset, 28.09.): 95th percentile per
 # half star from 2 to 7.5.
@@ -381,7 +386,8 @@ def generate_beatmap(
                 chosen.update(k=steer["k"], plan=candidate_plan, jump=jump)
             return actual
 
-        jump_max = max(JUMP_SCALE_MAX, HUMAN_DENSITY_JUMPS if HUMAN_DENSITY else 1.0)
+        jump_max = max(JUMP_SCALE_MAX, (CONTROL_JUMPS if JUMP_BY_CONTROL and section_profile
+                                        else HUMAN_DENSITY_JUMPS) if HUMAN_DENSITY else 1.0)
         if reached < stars and jump_max > 1.0:
             lo, hi = 1.0, jump_max
             for _ in range(5):
