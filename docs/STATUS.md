@@ -133,6 +133,13 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 - Trainingsplan, Morgenbericht und Importhilfe liegen im Trainingsordner. Noch nicht importiert: osu! lief nicht und wurde nicht gestartet. PC-Wachhalter ist zurückgesetzt; geschützte Konfigurationen blieben unverändert.
 
 ## Was die App gerade benutzt (`Start BeatMap AI.bat` → `.venv-rocm`)
+- **Geschwindigkeit (29.09.):** Eingaben je Objekt werden gecacht (bitgleich) und das Modell hält
+  seine Keys/Values innerhalb des Kontexts (`SequencePlacer._evaluate`, bis auf Rundung gleich):
+  GUERREIRO Expert mit v4 Formen 143 s → 77 s; 15 Songs × 2 ≈ 50 → 33 min. Getestet und **nicht**
+  übernommen: Fenster in 64er-Schritten (`window_step`, Option; Insane-Ausreißer 19 → 24),
+  interpolierende/früh abbrechende Sternsuche (17 % schneller, Sternwert öfter daneben),
+  fp16 (16 % schneller, größere Abweichungen). Rest ist GPU-Startaufwand pro Schritt (~10 ms);
+  nächster Hebel: mehrere Varianten (Sprungstufen, Best-of-4-Kandidaten) gleichzeitig rechnen.
 - **Seit 29.09.: Auswahl „Platzierungs-KI“** in der App: „v2 (Standard)“ (unverändert) oder
   „v4 Formen“ = `beatmap_ai/models/sequence-v4.pt` (fp16-Kopie) + `models/planner.pt` +
   `--shape-guide --human-density --jump-control`. Hinweis: bei manchen Songs trifft v4 Formen den

@@ -3,6 +3,11 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-29 mittags – Claude Code (Opus 5.5): Geschwindigkeit
+- Nutzer: v4 Formen „VIEL BESSER … deutlich besser zum Spielen“. Song-Passungs-KI als Häkchen in
+  der App (`c715c04`), testet er selbst. Dann Tempo ohne Qualitätsverlust: Feature-Cache +
+  KV-Cache (`64c62a2`, `3fa2242`), Details in STATUS „Was die App gerade benutzt“.
+
 ## 2026-09-29 morgens – Claude Code (Opus 5.5): v4 Formen in der App
 - Nutzer hat zugestimmt: Dropdown „Platzierungs-KI“ (v2 Standard / v4 Formen), Modelle in
   `beatmap_ai/models/` (v4 als fp16, 52 MB). Volle Tests 65 bestanden. Commit `cc86f8d`.
