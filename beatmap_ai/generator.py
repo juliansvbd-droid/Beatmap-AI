@@ -39,6 +39,10 @@ HUMAN_DENSITY = False
 # Render the moves as they were placed during sampling (a playfield correction used to be
 # lost, bending every later move). Off by default: it changes the app's maps.
 FAITHFUL_RENDER = False
+# Make jumps bigger (star search) through the model's jump-size control of each section
+# (needs the pre-planner) instead of scaling the positions it reads while placing: scaled
+# positions are outside what it learned, and even spacing fell from 76 % to 46-53 %.
+JUMP_BY_CONTROL = False
 HUMAN_DENSITY_JUMPS = 1.4
 # Notes per second of ranked maps (6,000 from the dataset, 28.09.): 95th percentile per
 # half star from 2 to 7.5.
@@ -280,6 +284,8 @@ def generate_beatmap(
         placer.shape_jump_scale = SHAPE_JUMP_SCALE
         placer.shape_guide = SHAPE_GUIDE
         placer.faithful_render = FAITHFUL_RENDER
+        if JUMP_BY_CONTROL and section_profile:
+            placer.control_jump, base = base, 1.0
         followed, choices = placer.follow(copy.deepcopy(plan), scale=base,
                                           critic=critic if ranked else None,
                                           candidates=candidates, passes=passes)

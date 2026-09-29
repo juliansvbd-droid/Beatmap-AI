@@ -62,6 +62,9 @@ def main(argv: list[str] | None = None) -> None:
                           "(experimental)")
     gen.add_argument("--no-shapes", dest="shapes", action="store_false",
                      help="v4 models: do not plan jump shapes (stars, squares ...)")
+    gen.add_argument("--jump-control", action="store_true",
+                     help="with --planner: make jumps bigger through the model's jump-size "
+                          "control instead of scaling positions (experimental)")
     gen.add_argument("--faithful-render", action="store_true",
                      help="draw the moves exactly as placed while sampling (fixes bent patterns "
                           "after playfield corrections; experimental)")
@@ -168,6 +171,7 @@ def main(argv: list[str] | None = None) -> None:
         generator.SHAPE_GUIDE = args.shape_guide
         generator.HUMAN_DENSITY = args.human_density
         generator.FAITHFUL_RENDER = args.faithful_render
+        generator.JUMP_BY_CONTROL = args.jump_control
         if args.device != "auto":
             summary = generator.device_summary()
             if args.device == "gpu" and summary == "Prozessor (CPU)":

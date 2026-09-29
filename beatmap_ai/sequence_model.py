@@ -482,6 +482,7 @@ class SequencePlacer:
         # to the shape's next corner (same distance, the shape's turn), else the corner.
         self.shape_guide = False
         self.faithful_render = False  # store moves as placed (see _step_placement)
+        self.control_jump = 1.0  # multiplies the section jump-size control (v3/v4 inputs)
         self.shape_runs: dict[int, tuple[str, float, int, int]] = {}  # time -> (shape, dir, pos, run)
         self.run_flip: dict[int, float] = {}  # run -> -1 once a shape had to be mirrored
 
@@ -507,6 +508,10 @@ class SequencePlacer:
                     raw = [section.get(key, 0.0) for key in keys]
                 values = np.asarray(raw, dtype=np.float32).ravel()
                 controls[i, :min(len(values), SECTION_CONTROLS)] = values[:SECTION_CONTROLS]
+        if self.control_jump != 1.0:
+            # Ask for bigger jumps through the learned jump-size control (column 1: mean
+            # move / 5 radii, halved) instead of stretching the positions the model reads.
+            controls[:, 1] = np.clip(controls[:, 1] * self.control_jump, 0.0, 1.0)
         if self.model.config["features"] <= V3_FEATURES:
             return np.concatenate([base, controls], axis=1)
         from .jump_shapes import SHAPE_FEATURES
