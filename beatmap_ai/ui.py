@@ -355,11 +355,8 @@ class BeatmapApp(tk.Tk):
         self.device_var = tk.StringVar(value=DEVICE_CHOICES[0][0])
         self.hardware_var = tk.StringVar(value="Hardware wird erkannt …")
         self.passes_var = tk.IntVar(value=1)
-        self.planner_var = tk.BooleanVar(value=False)
-        self.sequence_v3_var = tk.BooleanVar(value=False)
-        self.sequence_v3_path_var = tk.StringVar()
         self.sequence_model_info_var = tk.StringVar(
-            value="Standard: Sequence v2. Ein v3-Checkpoint wird nur bei ausdrücklicher Auswahl verwendet.")
+            value="Platzierung: siehe „Platzierungs-KI“ (Standard v2; „v4 Formen“ bringt die Vorplanung mit).")
 
         card = self._card(self.generate_page, "1. Song auswählen",
                           "Unterstützt MP3 und OGG. Der Künstler und Titel können aus „Künstler - Titel.mp3“ übernommen werden.")
@@ -448,17 +445,6 @@ class BeatmapApp(tk.Tk):
                  font=("Segoe UI", 9)).pack(side="left")
         tk.Spinbox(pass_row, from_=1, to=4, width=4, textvariable=self.passes_var,
                    justify="center").pack(side="left", padx=(8, 12))
-        ttk.Checkbutton(pass_row, text="Vorplanung nutzen (experimentell)",
-                        variable=self.planner_var).pack(side="left")
-        v3_row = ttk.Frame(card, style="Card.TFrame")
-        v3_row.pack(fill="x", pady=(8, 0))
-        ttk.Checkbutton(v3_row, text="Sequence v3 verwenden (experimentell)",
-                        variable=self.sequence_v3_var,
-                        command=self._update_sequence_v3_state).pack(side="left")
-        ttk.Entry(v3_row, textvariable=self.sequence_v3_path_var, width=54).pack(
-            side="left", fill="x", expand=True, padx=(8, 6))
-        ttk.Button(v3_row, text="Checkpoint wählen…", style="Secondary.TButton",
-                   command=self._choose_sequence_v3).pack(side="left")
 
         card = self._card(self.generate_page, "3. Ausgabe und Extras",
                           "Leere Metadatenfelder werden automatisch aus dem Dateinamen ausgefüllt.")
@@ -816,31 +802,10 @@ class BeatmapApp(tk.Tk):
             self.planner_advice_var.set("Vorplanung wird vorbereitet …")
             self.after(100, self._request_planner_advice)
 
-    def _choose_sequence_v3(self) -> None:
-        initial = self.sequence_v3_path_var.get().strip()
-        if not initial:
-            candidates = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/sequence-v3.pt"))
-            if candidates:
-                initial = str(max(candidates, key=lambda path: path.stat().st_mtime))
-        path = filedialog.askopenfilename(
-            title="Sequence-v3-Checkpoint auswählen",
-            initialdir=str(Path(initial).parent) if initial else "D:/BeatMap-AI-Dataset/night",
-            initialfile=Path(initial).name if initial else "",
-            filetypes=(("PyTorch-Checkpoint", "*.pt"), ("Alle Dateien", "*.*")))
-        if path:
-            self.sequence_v3_path_var.set(path)
-            self.sequence_v3_var.set(True)
-            self._update_sequence_v3_state()
-
-    def _update_sequence_v3_state(self) -> None:
-        if self.sequence_v3_var.get():
-            self.sequence_model_info_var.set("Experimentell: ausgewählter Sequence-v3-Checkpoint; v2 bleibt unverändert.")
-        else:
-            self.sequence_model_info_var.set(
-                "Standard: Sequence v2. Ein v3-Checkpoint wird nur bei ausdrücklicher Auswahl verwendet.")
-
     @staticmethod
     def _latest_planner_checkpoint() -> Path | None:
+        if (MODELS / "planner.pt").is_file():
+            return MODELS / "planner.pt"
         paths = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/planner.best.pt"))
         return max(paths, key=lambda path: path.stat().st_mtime) if paths else None
 
@@ -980,9 +945,6 @@ class BeatmapApp(tk.Tk):
         for difficulty in difficulties:
             args.extend(("-d", difficulty))
         if not self.use_model_var.get():
-            if self.sequence_v3_var.get():
-                messagebox.showinfo("Sequence v3", "Aktiviere zuerst ‚KI verwenden‘, um Sequence v3 zu nutzen.", parent=self)
-                return
             args.extend(("--no-model", "--rule-placement"))
         elif dict(PLACEMENT_CHOICES)[self.placement_var.get()]:
             placement = dict(PLACEMENT_CHOICES)[self.placement_var.get()]
@@ -991,17 +953,6 @@ class BeatmapApp(tk.Tk):
                 messagebox.showerror("Modell fehlt", "Nicht gefunden: " + ", ".join(missing), parent=self)
                 return
             args.extend(placement)
-        elif self.sequence_v3_var.get():
-            checkpoint_text = self.sequence_v3_path_var.get().strip()
-            checkpoint = Path(checkpoint_text).expanduser() if checkpoint_text else None
-            if checkpoint is None or not checkpoint.is_file():
-                candidates = list(Path("D:/BeatMap-AI-Dataset/night").glob("*/sequence-v3.pt"))
-                checkpoint = max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
-            if checkpoint is None or not checkpoint.is_file():
-                messagebox.showinfo("Sequence v3", "Bitte wähle zuerst einen v3-Checkpoint aus.", parent=self)
-                return
-            self.sequence_v3_path_var.set(str(checkpoint))
-            args.extend(("--sequence", str(checkpoint)))
         args.extend(("--variety", f"{self.variety_var.get() / 100:.2f}"))
         try:
             passes = int(self.passes_var.get())
@@ -1012,13 +963,6 @@ class BeatmapApp(tk.Tk):
             messagebox.showerror("Durchgänge prüfen", "Bitte wähle 1 bis 4 Durchgänge.", parent=self)
             return
         args.extend(("--passes", str(passes)))
-        if self.planner_var.get() and "--planner" not in args:
-            planner_paths = sorted(Path("D:/BeatMap-AI-Dataset/night").glob("*/planner.best.pt"),
-                                   key=lambda p: p.stat().st_mtime, reverse=True)
-            if not planner_paths:
-                messagebox.showinfo("Vorplanung", "Es wurde noch kein Vorplanungsmodell gefunden.", parent=self)
-                return
-            args.extend(("--planner", str(planner_paths[0])))
         args.extend(("--device", dict(DEVICE_CHOICES)[self.device_var.get()]))
         critic = dict(CRITIC_CHOICES)[self.critic_var.get()]
         if critic is None:
