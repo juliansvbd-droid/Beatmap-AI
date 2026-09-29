@@ -3,6 +3,27 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-09-29 20:51 Europe/Berlin – Codex: Projektprüfung und nächste Schritte
+- Auftrag: Projekt ansehen und nächsten Ansatz empfehlen. Status/Worklog, Rhythmus,
+  Generator, Platzierung, Training, Messwerkzeuge, Gesangs-Pilot und App-Auswahl geprüft.
+- Keine Code-/Modelländerung, kein Training oder GPU-Lauf. Prozessprüfung ohne laufendes
+  Python; Nachzählung der vorhandenen 15 v4-Kandidaten-Sets (30 Maps) ohne PyTorch-Import.
+- `patterns._rhythm_metrics`, tatsächliche Sterne aus `style.star_rating`: 10 Maps bei
+  3–4,5★, 19 bei 4,5–6★, eine bei 6★+. In 4,5–6★ im Mittel je Map/100 Objekte: Doubles
+  0,594, Triples 2,651, Bursts 0,944, Wiederholungs-Slider 1,199; Slider-Anteil 30,681 %.
+  Quelle: `D:\BeatMap-AI-Dataset\v4-kandidat-2026-09-29\`. Das sind gespeicherte Maps vom
+  frühen 29.09., keine neue Generierung und kein Beleg gegen einen anders konfigurierten
+  späteren Messlauf. Die Zählung schließt Sliderköpfe ein. Nullwerte aus STATUS deshalb
+  erst nach Zuordnung zu konkretem Lauf/Definition als v4-Grundproblem behandeln.
+- Empfehlung: reproduzierbarer Vergleich der Rhythmus-Zwischenstufen, dann gezielter Fix
+  bzw. Rhythmus v5; Gesangs-Proxys vor Integration auf Roh-Audio prüfen; unabhängige Songs
+  für Abschlussvergleich zurückhalten. Kein vollständiger Ursachenbeweis behauptet.
+- `docs/STATUS.md`: Befunde/Prioritäten ergänzt, alten Plan als historisch markiert und
+  veraltete Promptstände 02/03/04/06 berichtigt. Nur Dokumentation geändert, daher keine
+  Testsuite ausgeführt. `git pull --ff-only` vor Abschluss: bereits aktuell.
+- Offen: Messinstrumentierung und Ursachenvergleich sind der empfohlene nächste Auftrag;
+  nicht begonnen. Keine zusätzliche Umsetzung oder Trainingsrunde zugesagt.
+
 ## 2026-09-29 mittags – Claude Code (Opus 5.5): Geschwindigkeit
 - Nutzer: v4 Formen „VIEL BESSER … deutlich besser zum Spielen“. Song-Passungs-KI als Häkchen in
   der App (`c715c04`), testet er selbst. Dann Tempo ohne Qualitätsverlust: Feature-Cache +

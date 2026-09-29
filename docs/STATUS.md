@@ -1,9 +1,13 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-28 Europe/Berlin, von Claude Code (Opus 5.5)._
+_Zuletzt aktualisiert: 2026-09-29 20:51 Europe/Berlin, von Codex (Projektprüfung und Prioritäten)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
+- **29.09., 20:51, Codex: Projektprüfung abgeschlossen, keine eigenen Jobs aktiv.** Bei der
+  Prozessprüfung lief kein Python-Prozess. Nur vorhandene Maps CPU-seitig nachgezählt
+  (kein PyTorch importiert); Generator, App und Modelle unverändert. Aktuelle Empfehlung
+  unter „Prioritäten nach Projektprüfung“; die folgenden Laufberichte sind historisch.
 - **28.09., Claude Code: nichts läuft.** v4 fertig trainiert (4,26 h, Warmstart von v3, Stopp
   nach 25 Epochen ohne Verbesserung, bester Stand Epoche 220): `D:\BeatMap-AI-Dataset\day\2026-09-28-v4\sequence-v4.pt`
   (26,14 Mio. Parameter, 851 Eingaben). Auf 320 gleichen Validierungsfenstern: v3 1,488,
@@ -143,6 +147,14 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   Kiai 1,15–1,20× vs. Mensch 1,17–1,25×) stimmt dagegen. Nutzer: „Maps ohne Seele, nix Spannendes“,
   „Rhythmus-KI nutzt Lyrics 0“. Nächster Schritt: zählen, in welchem Schritt Figuren verloren gehen,
   dann Rhythmus v5 (Vorplanungswerte, Gesang aus `vocals.py`, Figuren als Lernziel).
+- **Einordnung dieser Rhythmuszahlen (Codex, 29.09. abends):** Auf den 30 gespeicherten Maps
+  in `D:\BeatMap-AI-Dataset\v4-kandidat-2026-09-29\` ergibt die vorhandene Zählung in
+  `patterns._rhythm_metrics` andere Werte: 19 Maps haben gemessene 4,5–6★; Mittelwerte je
+  Map und 100 Objekte: Doubles 0,594, Triples 2,651, Bursts 0,944, Wiederholungs-Slider
+  1,199; Slider-Anteil 30,681 %. Die Rhythmuszählung umfasst alle Objektstarts außer
+  Spinnern, auch Sliderköpfe. Das widerlegt den obigen Lauf nicht (Herkunft/Einstellungen
+  möglicherweise anders), belegt aber: Die Nullwerte sind kein allgemeiner v4-Befund.
+  Vor Änderungen Messlauf, Seeds, Modellstände und Zählweise eindeutig zuordnen.
 - **Geschwindigkeit (29.09.):** Eingaben je Objekt werden gecacht (bitgleich) und das Modell hält
   seine Keys/Values innerhalb des Kontexts (`SequencePlacer._evaluate`, bis auf Rundung gleich):
   GUERREIRO Expert mit v4 Formen 143 s → 77 s; 15 Songs × 2 ≈ 50 → 33 min. Getestet und **nicht**
@@ -480,7 +492,31 @@ Messung mit dem aktuellen Code offen.
 - Aufräumen: Repo öffentlich, 124 MB Modelle in der Git-Historie (Git LFS/Releases);
   Prompts enthalten lokale Pfade und den Vornamen; Testanzahl in STATUS widersprüchlich.
 
-## Offene Punkte / nächste Schritte (Plan vom 26.09. abends, mit Nutzer abgestimmt)
+## Prioritäten nach Projektprüfung (29.09. abends, Empfehlung von Codex)
+1. **Rhythmus entlang der gesamten Generierung messen.** Feste Songs, Seeds, Modelle,
+   Einstellungen und gemessene Sternbereiche; Referenz ist die App-Option „v4 Formen“.
+   Objektfolgen nach Tick-Auswahl, `shape_triples`, `absorb_into_sliders`, fertigem
+   `plan_objects`, `SequencePlacer.follow`, Refrain-Kopien und gewähltem Sternsuch-Ergebnis
+   vergleichen. Doubles/Triples/Bursts, Slider und Pausen getrennt zählen. Die Codeprüfung
+   bestätigt Eingriffe an diesen Stellen, noch nicht deren Anteil am Qualitätsproblem.
+2. **Den gemessenen Verlust gezielt beheben, danach Rhythmus v5 entscheiden.** Der aktuelle
+   Rhythmus-Trainer lernt Notenstart/Slider/Sustain/Abstand und wählt den Checkpoint nach
+   Noten-F1; Figuren und abschnittsweise musikalische Entscheidungen sind kein eigenes
+   Lernziel. Vorplanungs-Abschnittswerte erreichen derzeit die Platzierung, nicht das
+   Rhythmusmodell. Ein v5-Versuch sollte diese Lücken einzeln mit Vergleichsläufen prüfen.
+3. **Gesang zuerst verlässlich bewerten.** `vocals.py`, Tests, `scripts/vocal_stats.py` und
+   `docs/gesang-rhythmus.md` existieren, werden aber nicht vom Generator benutzt. Pilot:
+   171 Maps/30 Songs; nur 7 von 3.890 Abschnitten als gesangsgeführt gelabelt, VAD dagegen
+   91,4 % als stimmhaft. Das sind unsichere Signal-Proxys, keine belastbare automatische
+   Gesangssteuerung. Kleine geprüfte Roh-Audio-Stichprobe vor Integration/Training.
+4. **Qualität breiter absichern.** Neue, bisher nicht zum Nachjustieren verwendete Songs
+   für den Abschlussvergleich zurückhalten. Rhythmus-F1, Figurenverteilungen,
+   musikalische Wiederholung, Sternfehler, Dichte und Bewegung gemeinsam beurteilen;
+   seltene Formen nicht allein über Abstand vom menschlichen Median bewerten.
+   Mehr Durchgänge/Song-Passung sind nach dem bisherigen A/B kein vorrangiger Hebel.
+
+## Historischer Plan vom 26.09. abends (damals mit Nutzer abgestimmt)
+Die aktuellen Befunde und die neue Empfehlung stehen darüber; dieser Plan ist teilweise erledigt.
 **Phase A – Feinschliff im Generator (Claude Code, GPU lokal, je 1–3 h):**
 1. Hauptteil betonen (Zwischenlösung bis Prompt 04): in Kiai-/Refrain-Abschnitten größere
    Sprünge, außerhalb kleinere, gleiche Gesamtsterne.
@@ -510,11 +546,11 @@ Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 | 01 | `prompts/01-bewerter-ki.md` | Bewerter-KI (Mensch vs. KI), Best-of-N | **fertig** |
 | 01b | `prompts/01b-bewerter-ki-nachbessern.md` | Critic nachbessern: gepaarte Positiv-Maps (gleicher Song/Sterne), Negativ-Maps mit menschlichem Rhythmus, A/B auf 40 Songs | **fertig; neues Modell nach A/B nicht aktiviert** |
 | sol-01 | `prompts/sol-01-muster-messungen.md` | Torch-freie Muster-Messungen; Validierungspaare, Referenzperzentile und Abweichungsscore | **fertig** |
-| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **Checkpoint trainiert (78 Epochen); Auswertung offen** |
-| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **teilweise: 97 Epochen; Vergleich offen** |
+| 02 | `prompts/02-songpassung-und-mehrere-durchgaenge.md` | Song-Passungs-KI (Idee des Nutzers) + mehrere Durchgänge | **trainiert; A/B am 29.09. ohne messbaren Vorteil; echte Abschnittsüberarbeitung weiter offen** |
+| 03 | `prompts/03-v3-sliderformen-und-muster.md` | **Platzierungsmodell v3** (größer, bessere Platzierung, Slider-Formen, Auto-Tagging + ausgewogene Daten, Abschnitts-Vorgaben); überarbeitet 26.09. nach Blindtest | **v3 groß und darauf v4 trainiert; „v4 Formen“ seit 29.09. App-Option, restliche Modellgrenzen siehe oben** |
 | 05 | `prompts/05-nachtlauf.md` | Nachtlauf ~10 h: 03 → 04 → 02 nacheinander trainieren (Zeitbudget, Absicherung, nichts automatisch in die App) | **beendet; Phasen teilweise, siehe Nachtlaufbericht** |
-| 06 | `prompts/06-gesang-rhythmus.md` | Vocal Rhythm Engine des Nutzers nachbauen (CPU), messen wann Mapper dem Gesang folgen | bereit (Luna, parallel zum Nachtlauf) |
-| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **nicht trainiert; Phase E vor dem Training abgelaufen** |
+| 06 | `prompts/06-gesang-rhythmus.md` | Vocal Rhythm Engine des Nutzers nachbauen (CPU), messen wann Mapper dem Gesang folgen | **Prototyp + Pilotbericht vorhanden; noch keine Generator-Integration, Erkennung weiter zu validieren** |
+| 04 | `prompts/04-vorplanungs-ki.md` | Vorplanungs-KI (Idee des Nutzers): Songteile erkennen (Hauptteil/Höhepunkt, gelernt aus Kiai + Intensitätswechseln), Sterne/Stil empfehlen, Plan pro Teil | **im Tageslauf 27.09. trainiert; als planner.pt mit v4 aktiv; 128/256-Vergleich aus Nachtauftrag offen** |
 
 ## Environment (wichtig, hat echte Abstürze verursacht)
 - Python: `.venv-rocm\Scripts\python.exe` (PyTorch 2.9 + ROCm 7.2.1, AMD RX 7700 XT).
