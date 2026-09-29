@@ -133,6 +133,16 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 - Trainingsplan, Morgenbericht und Importhilfe liegen im Trainingsordner. Noch nicht importiert: osu! lief nicht und wurde nicht gestartet. PC-Wachhalter ist zurückgesetzt; geschützte Konfigurationen blieben unverändert.
 
 ## Was die App gerade benutzt (`Start BeatMap AI.bat` → `.venv-rocm`)
+- **Durchgänge / Song-Passung gemessen (29.09., 15 Songs × Insane/Expert, v4 Formen):** 2
+  Durchgänge, Song-Passung oder beides bringen nichts Messbares (Ausreißer Expert 21,8 → 23,8–24,1,
+  Insane 19,2 → 19,0–20,9, Sternfehler gleich, gleiche Abstände 68 → 59–69 %), kosten 30–60 % Zeit.
+  Empfehlung: 1 Durchgang, Song-Passung aus (beides bleibt Option).
+- **Neuer Hauptbefund: Der Rhythmus ist gleichförmig.** 4,5–6★ je 100 Noten: Doubles 0 (Mensch 2,3),
+  Triples 0,6 (3,6), Bursts 0 (1,2), Wiederholungs-Slider 0 (2,8), Slider 32 % (42 %), sich
+  wiederholende Rhythmusfenster 40 % (21 %). Grobe Dramaturgie (Dichte/Sprunggröße je Songteil,
+  Kiai 1,15–1,20× vs. Mensch 1,17–1,25×) stimmt dagegen. Nutzer: „Maps ohne Seele, nix Spannendes“,
+  „Rhythmus-KI nutzt Lyrics 0“. Nächster Schritt: zählen, in welchem Schritt Figuren verloren gehen,
+  dann Rhythmus v5 (Vorplanungswerte, Gesang aus `vocals.py`, Figuren als Lernziel).
 - **Geschwindigkeit (29.09.):** Eingaben je Objekt werden gecacht (bitgleich) und das Modell hält
   seine Keys/Values innerhalb des Kontexts (`SequencePlacer._evaluate`, bis auf Rundung gleich):
   GUERREIRO Expert mit v4 Formen 143 s → 77 s; 15 Songs × 2 ≈ 50 → 33 min. Getestet und **nicht**
