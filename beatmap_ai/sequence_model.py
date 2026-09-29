@@ -510,6 +510,9 @@ class SequencePlacer:
         self.control_jump = 1.0  # multiplies the section jump-size control (v3/v4 inputs)
         self._feature_cache: dict[tuple, np.ndarray] = {}  # see _model_features
         self.kv_cache = True  # see _evaluate
+        # Beyond the context: 0 slides the window by one object (exact, the default); 64 was
+        # 15 % faster on 15 songs, but Insane P95 outliers rose from 19.2 to 24.1 per 100.
+        self.window_step = 0
         self.shape_runs: dict[int, tuple[str, float, int, int]] = {}  # time -> (shape, dir, pos, run)
         self.run_flip: dict[int, float] = {}  # run -> -1 once a shape had to be mirrored
 
@@ -544,17 +547,21 @@ class SequencePlacer:
         position changes), so it is evaluated whole."""
         context = self.model.config["context"]
         cached = getattr(walker, "kv", None)
-        if not self.kv_cache or i >= context:
+        if not self.kv_cache or (i >= context and self.window_step <= 0):
             walker.kv = None
             x = self._model_features(rows[max(0, i - context + 1):i + 1])
             return self.model(torch.from_numpy(x)[None].to(self.device))
-        if cached is None or cached[0] != max(i - 1, 0):
-            start, past = 0, None  # (re)build the cache from the first object
+        # Beyond the context the window moves on in steps of ``window_step`` objects (it
+        # holds context - window_step + 1 .. context of them) instead of one per object,
+        # so the cache is rebuilt once per step instead of evaluating the window each time.
+        lo = 0 if i < context else -(-(i - context + 1) // self.window_step) * self.window_step
+        if cached is None or cached[0] != lo or cached[1] != max(i - 1, lo):
+            start, past = 0, None  # (re)build the cache from the window's first object
         else:
-            start, past = max(i - 1, 0), cached[1]
-        x = self._model_features(rows[:i + 1])[start:]
+            start, past = max(i - 1, lo) - lo, cached[2]
+        x = self._model_features(rows[lo:i + 1])[start:]
         raw, cache = self.model.extend(torch.from_numpy(x)[None].to(self.device), start, past)
-        walker.kv = (i, [(k[:, :, :-1], v[:, :, :-1]) for k, v in cache])
+        walker.kv = (lo, i, [(k[:, :, :-1], v[:, :, :-1]) for k, v in cache])
         return {k: v[:, -1:] for k, v in raw.items()}
 
     def _window_features(self, rows: np.ndarray) -> np.ndarray:
