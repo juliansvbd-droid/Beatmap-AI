@@ -72,6 +72,13 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
     - `--jump-control` (Sprunggrößen-Steuerwert der Abschnitte statt Positionen skalieren) hält die
       Abstände besser; auf einem Song erreichte es 191 px, im Mittel aber nur 119 px – das Modell
       folgt dem Steuerwert nur teilweise.
+    - **Bester Stand (29.09. früh): v4 + `--planner … --shape-guide --human-density --jump-control`**
+      (Sprung-Steuerwert bis 3×, `CONTROL_JUMPS`): 15 Songs – P95-Ausreißer Expert **19,8** (v3 28,0),
+      Insane **20,5** (21,5); 5–6★ 4,48 Noten/s, 1/2-Sprung 140 px (Mensch 4,04 / 190); gleiche
+      Abstände 76 %/61 % (3–4,5★/4,5–6★; Mensch 71/67 %); Sterne je Map 4,5–6★ Median 1,9, Mittel 2,4
+      (Mensch 1,7/3,7); Vielecke noch zu viele (4,3 vs. 0,7 je 100 Obj.). Maps zum Spielen:
+      `D:\BeatMap-AI-Dataset\v4-kandidat-2026-09-29\` (15 Songs × Insane/Expert). Alles opt-in;
+      die App nutzt weiter v2. Vorschlag an den Nutzer: als Option „v4 Formen“ in die App.
     - **Folgerung für v5-Training:** Das Modell selbst muss große, scharfe Sprünge können. Ideen:
       Steuerwerte beim Training seltener verstecken (jetzt 40 %), Sprunggröße/scharfe Wendungen als
       eigene, stärkere Bedingung; `sharp_keep`-Krücke prüfen (bremst scharfe Wendungen < 5★).
