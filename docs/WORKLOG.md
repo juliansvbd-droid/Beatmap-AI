@@ -9,6 +9,8 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
   `--shape-guide` ist der beste Kandidat; Dichte-Problem nur mit Sprüngen lösbar, die aber die
   Abstände ungleich machen (offen). Sols pattern_deviation ist für seltene Formen ungeeignet.
 - Commits `4987f74`, `ac9f1f7`, Doku `675310f` + dieser. App (v2) unverändert, alles opt-in.
+- Danach: `--faithful-render` (`4a83096`), `--jump-control` (`be896ae`); Kernbefund: Menschen
+  mappen 5–6★ mit weniger Noten und viel größeren, schärferen Sprüngen (Tabelle in STATUS).
 
 ## 2026-09-28 ~11:00 – Claude Code (Opus 5.5): v4 trainiert, Formführung
 - v4 (Formen als Eingabe) trainiert und gemessen, siehe STATUS oben. Allein kaum Formen in Maps;

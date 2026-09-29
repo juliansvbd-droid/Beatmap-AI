@@ -56,6 +56,25 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
     Sprünge am Rand verkürzen statt verbiegen, dann `--human-density` erneut messen. 3–4,5★ hat noch
     zu viele Sprungfolgen (Mensch 5 % der Objekte, wir 15–20 %) und damit zu viele Sterne/Vielecke.
     Mess-Maps: Scratchpad `v4eval/flat_*` (s1–s15), Skripte `per_map_shapes.py`, `p95_summary.py`.
+  - **Später in der Nacht – Kernbefund Sprunggröße:** Menschen erreichen 5–6★ mit **4,0 Noten/s,
+    1/2-Sprüngen von 190 px und 48 % scharfen Wendungen**; wir mit 5,8 Noten/s, 98–115 px und
+    17–22 %. Unsere Maps sind „zaghaft und dicht“. Versuche (15 Songs, alle mit `--shape-guide`):
+
+    | | Noten/s 5–6★ | 1/2-Sprung px | scharf | gleiche Abst. 4,5–6★ | P95 Expert / Insane |
+    |---|---|---|---|---|---|
+    | Mensch | 4,04 | 190 | 48 % | 67 % | – |
+    | v3 + Vorplanung | 5,76 | 98 | 17 % | 73 % | 28,0 / 21,5 |
+    | v4 + shape-guide | 5,75 | 115 | 22 % | 76 % | 32,1 / 19,5 |
+    | + human-density, Sprünge bis 1,8× (Positionen skaliert) | 4,86 | 119 | 30 % | 49 % | 21,7 / 23,5 |
+    | + human-density + `--jump-control` (bis 1,8×) | 4,96 | 119 | 24 % | 62 % | 25,6 / 25,0 |
+
+    - `--faithful-render` (Bug: Randkorrektur ging beim Neuzeichnen verloren) – Effekt klein.
+    - `--jump-control` (Sprunggrößen-Steuerwert der Abschnitte statt Positionen skalieren) hält die
+      Abstände besser; auf einem Song erreichte es 191 px, im Mittel aber nur 119 px – das Modell
+      folgt dem Steuerwert nur teilweise.
+    - **Folgerung für v5-Training:** Das Modell selbst muss große, scharfe Sprünge können. Ideen:
+      Steuerwerte beim Training seltener verstecken (jetzt 40 %), Sprunggröße/scharfe Wendungen als
+      eigene, stärkere Bedingung; `sharp_keep`-Krücke prüfen (bremst scharfe Wendungen < 5★).
 - **Blindtests beendet (Nutzer, 28.09.):** Ab jetzt entscheidet Claude über Messwerte.
   Blindtest 3 aufgelöst (ohne ALQUIMIA Expert): v3+Vorplanung 2× vorne, nie hinten;
   v2 1× vorne; v3+Vorplanung+jumps-first 2× hinten.
