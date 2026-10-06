@@ -1,9 +1,33 @@
 # Beatmap-AI
 
+A public deep-learning research prototype for generating osu!standard beatmaps from audio.
+
+**Research question:** How closely can learned generation approach the musical choices
+and playable movement patterns of human mappers—rhythm selection, emphasis, flow and
+variation—beyond placing objects at detected onsets?
+
+The current system combines learned rhythm and sequence placement with hand-designed
+constraints. Human-like mapping is a research goal, not a demonstrated result.
+Development is active; locally developed work and experiments are being published
+incrementally. There is no established downstream adoption or substantial download
+reach to report yet.
+
+- [Research scope, evaluation plan and roadmap](docs/RESEARCH.md)
+- [Current findings and known problems](docs/STATUS.md) (German)
+- [Experiment and development log](docs/WORKLOG.md) (German)
+- [Contributing and reporting reproducible failures](CONTRIBUTING.md)
+
+**Licensing status:** This repository currently has no project license. Public source
+availability alone does not grant an open-source license. An OSI-approved license and
+a review of rights for bundled model weights and third-party material remain release
+requirements.
+
+## Quick start
+
 Generate osu!standard beatmaps from an MP3.
 
 ```bash
-pip install -e .                      # add ".[train]" for the neural model
+pip install -e ".[train]"             # PyTorch + neural models; base install for heuristics
 beatmap-ai generate "Artist - Title.mp3"
 # -> "Artist - Title.osz" with Normal, Hard and Insane difficulties
 ```
@@ -18,6 +42,11 @@ einen Stil wählen (Auto, Jump, Stream, Tech, Flow, Circles – mit Stärke-Regl
 Beatmaps erzeugen und die KI mit lokalen Beatmap-Sammlungen weitertrainieren (mehrere
 Ordner mit `;` trennen). Die Trainings-Voreinstellungen richten sich nach dem erkannten
 Rechengerät (ROCm/CUDA, DirectML oder CPU). Alle Dateien bleiben auf deinem PC.
+
+Bei „Platzierungs-KI“ bleibt **v2 (Standard)** die Voreinstellung. **v4 Formen**
+ist eine experimentelle Option mit Vorplanung, Formführung und Dichtebegrenzung;
+sie kann den gewünschten Sternwert verfehlen. Mehr Durchgänge und Song-Passung
+brachten im bisherigen kleinen Vergleich keinen messbaren Qualitätsgewinn.
 
 Alternativ lässt sich die Oberfläche aus einer aktivierten Python-Umgebung mit
 `python -m beatmap_ai ui` öffnen.
@@ -39,16 +68,20 @@ Beatmap-AI splits the job into four steps:
    notes, quiet ones fewer. The picks follow each difficulty's rules: shortest gap
    between notes, longest stream, and how long a slider needs before the next note.
    Sustained sounds become sliders, and long held passages become spinners.
-   * **Heuristic mode** (default) scores ticks by onset strength and beat position.
-   * **Model mode** (`--model`) scores ticks with a trained neural network. Newer
+   * **Heuristic mode** (`--no-model`) scores ticks by onset strength and beat position.
+   * **Model mode** uses the bundled rhythm checkpoint by default when PyTorch is installed;
+     `--model` selects a different checkpoint. Newer
      models also set slider lengths (how long a sound is held) and the spacing of
      every note (see below).
 3. **Placement** (`beatmap_ai/placement.py`): decides *where* notes go. Spacing grows
    with the time between notes (distance snapping). With a newer model the distance
    snap of each note comes from the model -- jumps where mappers emphasise the music,
    tight spacing in calm parts -- widened to the variation mappers use at that star
-   rating. Otherwise loud notes get jumps on Hard and above. The path curves smoothly within a combo and turns sharply on new combos.
-   Sliders are circular arcs whose length is exact. Any position that would leave the
+   rating. The default learned sequence
+   model predicts object placement; newer experiments also condition it on planned
+   shapes and section controls. With `--rule-placement`, loud notes get jumps on Hard
+   and above. The path curves smoothly within a combo and turns sharply on new combos.
+   The rule-based fallback uses circular-arc sliders. Any position that would leave the
    playfield or cover a recent note is rejected.
 4. **Output** (`beatmap_ai/osu.py`): writes `.osu` v14 files with combos, break periods,
    preview time and audio lead-in, and packs them into an `.osz`.
@@ -109,18 +142,21 @@ beatmap-ai generate song.mp3 --model beatmap_model.pt
 # Star ratings and a style
 beatmap-ai generate song.mp3 -d 3.8 -d 5.2 --style jump=0.7
 
-# The app defaults stay on sequence v2 and one pass. Opt in to an experiment explicitly:
-beatmap-ai generate song.mp3 --sequence D:/BeatMap-AI-Dataset/night/2026-09-26/sequence-v3.pt \
-  --planner D:/BeatMap-AI-Dataset/night/2026-09-26/planner.best.pt \
-  --songfit D:/BeatMap-AI-Dataset/night/2026-09-26/songfit.pt --passes 2
+# Compare a heuristic baseline with the default learned pipeline (same song and seed)
+beatmap-ai generate song.mp3 --no-model --rule-placement --no-critic --seed 0 -o baseline.osz
+beatmap-ai generate song.mp3 --seed 0 -o learned.osz
+
+# Experimental v4 configuration (GUI option: "v4 Formen")
+beatmap-ai generate song.mp3 --sequence beatmap_ai/models/sequence-v4.pt \
+  --planner beatmap_ai/models/planner.pt --shape-guide --human-density --jump-control
 ```
 
 If the file name looks like `Artist - Title.mp3`, the metadata is filled in from it.
 
-Experimental checkpoints are never activated automatically. The GUI keeps sequence v2
-selected unless the **Sequence v3 verwenden** option is enabled and a checkpoint is
-chosen. The default refinement count is one pass; higher values run more candidate
-refinements per section. Planner and song-fit checkpoints are also opt-in.
+The GUI defaults to sequence v2; select **v4 Formen** explicitly to use the experimental
+configuration above. The default refinement count is one pass; higher values run more
+candidate refinements per section. The CLI also defaults to the bundled sequence v2.
+Planner and song-fit checkpoints are opt-in.
 
 ## Training the AI on real beatmaps
 
@@ -231,8 +267,13 @@ They also run a short train → generate cycle for the model.
 
 * Generated beat grids assume 4/4. Subtle tempo changes or weak beat signals may still need
   manual correction with `--bpm`/`--offset`.
-* The model sets the spacing, but directions, patterns and slider shapes are still
-  rule-based. A good next step is a learned placement model, for example a sequence
-  model over (Δtime, distance, angle) trained on the same data.
-* No hitsounds, kiai or slider-velocity changes yet.
+* Learned sequence placement is implemented, including outputs for patterns, slider
+  direction and hitsounds, but it still relies on hand-designed constraints. v4 shape
+  guidance is experimental; it does not establish autonomous human-level mapping.
+* Rhythm variety, slider balance and larger expressive jumps remain open problems.
+  Vocal-analysis tools exist but are not integrated into the generator.
+* Repeated-section copying and kiai marking are implemented. The pipeline still does
+  not model every expressive choice of a human mapper.
+* Rhythm F1, star accuracy and movement statistics are useful proxies, not proof of
+  musical intuition or enjoyable play. See the [evaluation plan](docs/RESEARCH.md).
 * osu!stable plays only `.mp3`/`.ogg` audio.

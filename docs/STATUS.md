@@ -1,9 +1,16 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-09-29 20:51 Europe/Berlin, von Codex (Projektprüfung und Prioritäten)._
+_Zuletzt aktualisiert: 2026-10-06 18:33 Europe/Rome, von Codex (Forschungsdokumentation)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
+- **06.10., 18:33, Codex: öffentliche Forschungsdokumentation abgeschlossen.**
+  README anhand von CLI/Generator und aktuellem Status korrigiert; Forschungsfrage,
+  Evaluationsplan und Beitragsleitfaden ergänzt. Keine Code-/Modelländerung, kein
+  Training und keine lokalen Prozesse geprüft oder gestartet. Historische Laufberichte
+  unten bleiben erhalten. Keine Annahme bei Claude for Open Source zugesagt; aktuell
+  fehlen eine Projektlizenz und belegte nachgelagerte Nutzung. Alter des GitHub-Kontos
+  vor Bewerbung prüfen (Programmbedingungen: mindestens zwei Jahre).
 - **29.09., 20:51, Codex: Projektprüfung abgeschlossen, keine eigenen Jobs aktiv.** Bei der
   Prozessprüfung lief kein Python-Prozess. Nur vorhandene Maps CPU-seitig nachgezählt
   (kein PyTorch importiert); Generator, App und Modelle unverändert. Aktuelle Empfehlung

@@ -3,6 +3,27 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-10-06 18:33 Europe/Rome – Codex: Forschungsprofil und OSS-Bewerbung
+- Auftrag: GitHub-Repo für eine ehrliche Claude-for-Open-Source-Bewerbung verbessern,
+  Chancen einschätzen und zwei englische Formularentwürfe formulieren.
+- README: Forschungsfrage, Prototyp-/Reichweiten-/Lizenzstatus und Dokumentationslinks
+  ergänzt; veraltete Angaben zu Heuristik-Default, v3-App-Auswahl, regelbasierter
+  Platzierung und fehlendem Kiai korrigiert; portable v4-/Baseline-Beispiele ergänzt.
+- Neu: `docs/RESEARCH.md` (vorhandene Komponenten, Nutzen als Ziel, Related Work,
+  Ablationen, Reproduzierbarkeit, geplante Spielbewertung und konkrete Meilensteine)
+  und `CONTRIBUTING.md` (Fehlerberichte, gemessene Änderungen, Daten-/Lizenzstatus).
+- `docs/STATUS.md` aktualisiert. Nur Dokumentation geändert; keine Modelle, Songs,
+  Daten, Abhängigkeiten oder Laufzeitlogik verändert. Kein GPU-/Trainingsjob gestartet.
+- Prüfung: fünf geänderte Markdown-Dateien; lokale relative Dateilinks gegen den
+  Repo-Dateibaum geprüft, CLI-Beispiele mit `beatmap_ai/cli.py` abgeglichen.
+  Keine Testsuite ausgeführt (Dokumentationsänderung); keine neuen Forschungsergebnisse
+  oder Abhängigkeiten/Nutzerzahlen behauptet.
+- Offene Voraussetzungen: OSI-Lizenz bewusst nicht ohne Lizenzentscheidung vergeben;
+  Rechte an Gewichten/Material prüfen, GitHub-Kontoalter und belegte Nutzung prüfen.
+- Programm am 06.10. geprüft: Ecosystem Impact Track erwartet bestehende Bedeutung,
+  nicht allein Zukunftspotenzial. Keine Bewerbung abgeschickt; keine Genehmigung
+  zugesagt. Englische Entwürfe und realistische Einordnung werden im Chat geliefert.
+
 ## 2026-09-29 20:51 Europe/Berlin – Codex: Projektprüfung und nächste Schritte
 - Auftrag: Projekt ansehen und nächsten Ansatz empfehlen. Status/Worklog, Rhythmus,
   Generator, Platzierung, Training, Messwerkzeuge, Gesangs-Pilot und App-Auswahl geprüft.
