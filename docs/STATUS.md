@@ -1,14 +1,18 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-10-17 15:05 Europe/Berlin, von Claude Code (App-Standard v4 Formen)._
+_Zuletzt aktualisiert: 2026-10-17 ~16:45 Europe/Berlin, von Claude Code (Rhythmus-Diagnose, v4/v5-Vergleich)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
+- **17.10., ~16:45, Claude Code (Nebensitzung Rhythmus-Diagnose): nichts läuft – GPU frei.**
+  ROCm-Messläufe 15:14–16:33 nacheinander beendet, danach volle Testsuite (CPU). Ergebnis im
+  Abschnitt „Rhythmus-Diagnose und v4/v5-Vergleich“: v5-strict verworfen, zuerst Slider-Regeln in
+  `plan_objects` reparieren. Daten/Logs: `D:\BeatMap-AI-Dataset\rhythm-audit-2026-10-17\`.
 - **17.10., Claude Code: nichts läuft – GPU und Dateien sind frei.** Prozessprüfung: kein
   BeatMap-AI-/PyTorch-Prozess aktiv (nur fremde Python-Tools). Lokaler Stand mit GitHub
   abgeglichen (`4937ffd` reingeholt) und Codex' Rhythmus-v5-Code vom 29.09. nach grüner
   Testsuite (69 bestanden, CPU, 15 min) als `ce1abc0` committet und gepusht. Das v5-Experiment ist
-  beendet, aber **nicht ausgewertet**: der v4/v5-Vergleich auf Holdout-Songs fehlt, kein
+  beendet und seit 17.10. nachmittags **ausgewertet (verworfen, siehe Rhythmus-Diagnose)**; kein
   v5-Modell in `beatmap_ai/models/`, die App nutzt weiter Rhythmus v4. Details: WORKLOG 17.10.
 - **06.10., 18:33, Codex: öffentliche Forschungsdokumentation abgeschlossen.**
   README anhand von CLI/Generator und aktuellem Status korrigiert; Forschungsfrage,
@@ -47,7 +51,7 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   `rhythm-v5-frozen-strict.pt`, Log `train-frozen-strict.log` im selben D:-Ordner.
   Jetzt ROCm-Vergleich der zwei Problemsongs (Launcher-PID 25180,
   Python-PID 27284, Log `v5-strict-problems.log`). Danach v4/v5-Vergleich
-  auf drei Trainings-Holdout-Songs.
+  auf drei Trainings-Holdout-Songs (nachgeholt am 17.10. auf 30 bzw. 6 Holdout-Songs).
   (Sperre für andere Agenten aufgehoben, siehe 17.10.)
 - **29.09., 20:51, Codex: Projektprüfung abgeschlossen, keine eigenen Jobs aktiv.** Bei der
   Prozessprüfung lief kein Python-Prozess. Nur vorhandene Maps CPU-seitig nachgezählt
@@ -176,6 +180,93 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   3,39 s Baseline, 13,79 s alter Critic, 13,80 s neuer Critic (4,1× Laufzeit).
   Es läuft kein Python-/PyTorch-Prozess.
 
+## Rhythmus-Diagnose und v4/v5-Vergleich (17.10., Claude Code) – Priorität 1 erledigt
+**Empfehlung:** (1) **Rhythmus v5-strict verwerfen** (nicht übernehmen; `beatmap_ai/models/rhythm.pt`
+bleibt v4). (2) **Zuerst die Slider-Entscheidung in `rhythm.plan_objects` reparieren**, dann die
+**Sternsuche** („zu schwer → weniger Noten“), erst danach die Rhythmus-KI selbst (Doubles).
+`shape_triples`, Render und Refrain-Kopien sind nicht das Problem.
+
+**Aufbau.** Holdout = Validierungssongs (`dataset.is_validation(song_key)`) mit Audio, die in
+keinem Log/Manifest/Bericht auf D:, in `docs/`/`prompts/` und in keiner Standard-Auswahl der
+Messwerkzeuge vorkommen (`scripts/rhythm_holdout.py`): 185 von 1.266 Songs, Liste
+`D:\BeatMap-AI-Dataset\rhythm-audit-2026-10-17\holdout.json`. Generiert wird auf dem Timing der
+Menschen-Map mit deren Sternen als Ziel, App-Weg „v4 Formen“ (sequence-v4, planner, Critic v1
+Best-of-4, `--shape-guide --human-density --jump-control`, Seed 0/1). Figuren je 100 Objekte nach
+`patterns._rhythm_metrics` (Läufe genau 1/4 Beat, Sliderköpfe zählen mit), Pausen = freie Zeit
+von Objektende bis nächstem Start (`beatmap_ai/rhythm_audit.py`), F1 ±30 ms gegen die Menschen-Map.
+Alle Ergebnisse, Logs und erzeugten Maps: `D:\BeatMap-AI-Dataset\rhythm-audit-2026-10-17\`.
+
+**Verlust je Stufe** (`scripts/audit_rhythm_pipeline.py --holdout`, 6 Holdout-Songs, je
+Insane-Map ≈4,5★ / Expert-Map ≈5,6★, Werte „Insane / Expert“, Mittel je Map; Sternfehler
+0,05 / 0,03; alle 12 Maps mit Schwellen-Auswahl; Stufe 3 `reinforce_figures` gibt es nur bei v5):
+
+| Stufe | Obj. | Doubles | Triples | Bursts 4–8 | Slider % | Wdh.-Slider | 1/4-Abst. % | 1/2-Abst. % | Pausen ≥2 Beats | F1 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Mensch (dieselben Maps) | 490 / 645 | 2,98 / 4,09 | 3,55 / 4,00 | 1,65 / 2,11 | 51 / 40 | 10,8 / 5,4 | 19 / 30 | 33 / 39 | 0,86 / 0,62 | – |
+| 0 Sternsuche: erster Rhythmus | 548 / 690 | 1,77 / 2,26 | 2,57 / 4,81 | 0,41 / 1,71 | 30 / 16 | 1,8 / 0,4 | 9 / 22 | 52 / 54 | 2,28 / 1,61 | 0,765 / 0,779 |
+| 1 Tick-Auswahl (gewählter Rhythmus) | 523 / 695 | 1,62 / 2,12 | 1,98 / 4,34 | 0,10 / 1,49 | – | – | 6 / 21 | 50 / 55 | – | 0,760 / 0,771 |
+| 2 `shape_triples` | 523 / 695 | 1,62 / 2,14 | 1,98 / 4,32 | 0,10 / 1,49 | – | – | 6 / 21 | 50 / 55 | – | 0,760 / 0,771 |
+| 4 `absorb_into_sliders` | 506 / 681 | 1,73 / 2,11 | 1,90 / 4,36 | 0,10 / 1,49 | – | – | 6 / 21 | 47 / 53 | – | 0,757 / 0,769 |
+| 5 `plan_objects` fertig (Slider) | 506 / 681 | 1,73 / 2,11 | 1,90 / 4,36 | 0,10 / 1,49 | 36 / 19 | 2,6 / 0,6 | 6 / 21 | 47 / 53 | 2,31 / 1,72 | 0,757 / 0,769 |
+| 6 `SequencePlacer.follow` | 507 / 682 | 1,94 / 2,38 | 1,89 / 4,35 | 0,10 / 1,48 | 36 / 19 | 2,6 / 0,6 | 6 / 21 | 47 / 53 | 2,34 / 1,77 | 0,757 / 0,770 |
+| 7 Render | 507 / 682 | 1,94 / 2,38 | 1,89 / 4,35 | 0,10 / 1,48 | 36 / 19 | 2,6 / 0,6 | 6 / 21 | 47 / 53 | 2,38 / 1,77 | 0,757 / 0,770 |
+| 8 final (Refrain-Kopien) | 505 / 677 | 1,94 / 2,43 | 1,67 / 4,46 | 0,10 / 1,49 | 36 / 19 | 2,6 / 0,6 | 6 / 20 | 48 / 54 | 2,38 / 1,77 | 0,754 / 0,769 |
+
+- **Tick-Auswahl (Modell + Schwelle) verliert die Figuren:** Doubles halb so oft wie beim Menschen,
+  Insane-Bursts fast nie, zu viele 1/2-Abstände („gleichförmig“). Auf 99 Holdout-Maps (30 Songs,
+  nur Rhythmus, `scripts/compare_rhythm_models.py`) bei 4,5–6★ dasselbe: Doubles 2,16 (Mensch 4,24),
+  Triples 4,44 (3,74, also schon zu viele), 1/2-Abstände 55 % (40 %), 10 % mehr Objekte als der Mensch.
+- **Slider gehen in `plan_objects` verloren** (36 / 19 % statt 51 / 40 %; 99 Maps bei 4,5–6★:
+  20 % statt 44 %, Wdh.-Slider 0,7 statt 4,5). Gründe (`scripts/slider_reasons.py`, 99 Maps,
+  27.910 Slider-Köpfe des Menschen, Nachspielen der Regeln 99/99 exakt): an der Stelle hat unsere
+  Map 37 % ebenfalls einen Slider, **31 % einen Kreis wegen „½ Beat Pause nach jedem Slider“**
+  (`quick_release` 8–15 %), 12 % keinen Platz (nächste Note zu nah), 11 % die Kick-Regel
+  (`kick_confidence`), 8 % gar keine Note. Bei der ½-Beat-Regel setzt der Mensch in 46 % der Fälle
+  einen 1/4-Kick-Slider in **genau unserem Rhythmus** (nächste Note nach ½ Beat) – das ist reine
+  Regel; in mindestens 41 % hält er ½–1 Beat, wo wir nach ½ Beat erneut tippen (Extra-Note im Slider-Körper:
+  Tick-Auswahl/`absorb_into_sliders`).
+- **Sternsuche:** In 7 von 12 Holdout-Maps war der erste Entwurf zu schwer; die Suche fragt die
+  Rhythmus-KI dann nach weniger Sternen und streicht 4–24 % der Noten (Insane, fertig geplant:
+  Triples 2,6 → 1,9, Bursts 0,4 → 0,1), bevor sie Abstände verkleinert (einmal umgekehrt: +14 %).
+- **Kein Verlust:** `shape_triples` (±0,05), Render (0), Refrain-Kopien (≤0,25 je 100),
+  `follow` macht sogar +0,2–0,3 Doubles. Pausen ≥2 Beats sind fast 3× so häufig wie beim Menschen.
+- **15 v4-Kandidaten-Songs** (`Music/`, ohne Menschen-Map, Referenz = Validierungs-Maps 4,2–4,95★ /
+  5,2–6,2★): final Doubles 1,37 / 0,81 (Mensch 3,90 / 3,75), Triples 2,20 / 3,35 (3,79 / 3,80),
+  Bursts 0,53 / 1,02 (1,44 / 1,96), Slider 32 / 25 % (44 / 40 %), Pausen ≥2 Beats 3,7 / 2,5 (0,8 / 0,7);
+  dieselbe Stufenfolge (Verlust bei Tick-Auswahl und Slidern). Vorsicht: 9 der 15 Songs werden mit
+  ≥194 BPM erkannt (Referenz-Median 164–176), dort sind 1/4-Figuren 60–80 ms kurz. Expert: Sternsuche
+  11× nicht der erste Rhythmus, 4× Dichte-Auswahl, Sternfehler 0,13. Die alten Codex-Läufe
+  (ALQUIMIA/ECLIPSER) wurden objektgenau reproduziert.
+
+**v4 gegen v5-strict** (`rhythm-v5-frozen-strict.pt`): Note/Slider/Sustain/Abstand sind bitgleich
+(max. Abweichung 0,0), Schwellen gleich; der einzige Unterschied ist `reinforce_figures` (nur bei
+Schwellen-Auswahl, ≤5 % Zusatznoten, bei Insane+ fast immer am Deckel).
+
+| | Rhythmus allein, 99 Maps/30 Songs, 4,5–6★ (v4 / v5 / Mensch) | Volle App-Pipeline, 12 Maps/6 Songs (v4 / v5 / Mensch) |
+|---|---|---|
+| Auswahlart | beide Schwelle, keine Sternsuche | gleich in 12/12 Paaren (Schwelle) |
+| Objekte | 775 / 800 / 702 | 591 / 594 / 568 |
+| Doubles je 100 | 2,25 / 2,08 / 4,24 | 2,18 / 2,01 / 3,54 |
+| Triples je 100 | 4,38 / 5,20 / 3,74 | 3,07 / 4,09 / 3,78 |
+| Bursts 4–8 je 100 | 1,32 / 1,93 / 1,76 | 0,80 / 1,17 / 1,88 |
+| Slider % / Wdh.-Slider je 100 | 20,3 / 19,7 / 43,6 · 0,70 / 0,76 / 4,48 | 27,4 / 27,7 / 45,3 · 1,56 / 1,16 / 8,07 |
+| 1/4- / 1/2-Abstände % | 19,6 / 24,9 / 23,8 · 53,4 / 49,0 / 40,2 | 12,9 / 17,5 / 24,2 · 50,7 / 45,6 / 35,9 |
+| Rhythmus-F1 | 0,788 / 0,786; alle 99 Maps ΔF1 **−0,0016** (95 % −0,0028 … −0,0005), v5 33× besser, 64× schlechter | 0,761 / 0,764; ΔF1 +0,0025 (95 % −0,0025 … +0,0085), 5× besser, 7× schlechter, ohne HAELEQUIN −0,0012 |
+| Sternfehler | – | 0,041 / 0,039 |
+
+- 3–4,5★ (30 Maps) und 6–6,5★ (11 Maps) zeigen dasselbe Muster (ΔF1 −0,0015 bzw. +0,0006).
+  v5 hängt an vorhandene Noten eine 1/4-Folgenote an: aus Doubles werden Triples, aus Triples
+  Bursts. Bursts und 1/4-Anteil nähern sich dem Menschen, Doubles entfernen sich, Triples
+  schießen über; Slider und 1/2-Gleichförmigkeit bleiben. Kein Nachweis eines Vorteils.
+- **ALQUIMIA (warum v5 = v4):** BPM-Erkennung 220 → 1/4 Beat = 68 ms. Der Figuren-Kopf meldet an
+  78 (Insane) bzw. 84 (Expert) Noten ≥0,5, aber an keiner hört der Noten-Kopf 68 ms später etwas
+  (`reinforce_figures` verlangt ≥0,45 × Schwelle = 0,18) → 0 Zusatznoten, Map bitgleich. Die Figuren
+  dieses Songs liegen auf 1/2-Abständen (35–42 %, 0 % 1/4); Ursache ist die Tempo-Oktave, nicht v5.
+- **ECLIPSER Expert mit gleicher Auswahl** (v4 mit `--force-selection threshold`): v4 632 Objekte,
+  4,96★; v5 587 Objekte, 5,14★ (Ziel 5,6). Die App-v4 erreicht 5,60★ nur über Dichte-Auswahl
+  (968 Objekte, 0 % Slider, 74 % 1/4-Abstände = fast nur Streams). ECLIPSER Insane: 564 → 556
+  Objekte, 4,39 → 4,54★.
+
 ## Letzter externer Auftrag (26.09.2026)
 - Luna-Nachtauftrag in `D:\osu\Training-UnlockedBrick32` abgeschlossen. Öffentliche Profildaten ausgewertet; 6★-Track mit 24 installierten Maps und 14 Tempo-Maps erstellt.
 - 120 neue `.osz`-Sets (883.317.333 Bytes) nach `D:\osu\downloads\neu-6sterne\` geladen und geprüft. 1/15 Sets erfüllt im gefundenen Pool den exakten hohen AR-Bereich; 14 Ergänzungen sind im Manifest gekennzeichnet.
@@ -192,6 +283,8 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   Kiai 1,15–1,20× vs. Mensch 1,17–1,25×) stimmt dagegen. Nutzer: „Maps ohne Seele, nix Spannendes“,
   „Rhythmus-KI nutzt Lyrics 0“. Nächster Schritt: zählen, in welchem Schritt Figuren verloren gehen,
   dann Rhythmus v5 (Vorplanungswerte, Gesang aus `vocals.py`, Figuren als Lernziel).
+  **17.10. gemessen** (Abschnitt „Rhythmus-Diagnose und v4/v5-Vergleich“, gleiche Zählweise für
+  Mensch und KI): Figuren fehlen ab der Tick-Auswahl, Slider ab `plan_objects`; v5-strict hilft nicht.
 - **Einordnung dieser Rhythmuszahlen (Codex, 29.09. abends):** Auf den 30 gespeicherten Maps
   in `D:\BeatMap-AI-Dataset\v4-kandidat-2026-09-29\` ergibt die vorhandene Zählung in
   `patterns._rhythm_metrics` andere Werte: 19 Maps haben gemessene 4,5–6★; Mittelwerte je
@@ -543,11 +636,17 @@ Messung mit dem aktuellen Code offen.
    `plan_objects`, `SequencePlacer.follow`, Refrain-Kopien und gewähltem Sternsuch-Ergebnis
    vergleichen. Doubles/Triples/Bursts, Slider und Pausen getrennt zählen. Die Codeprüfung
    bestätigt Eingriffe an diesen Stellen, noch nicht deren Anteil am Qualitätsproblem.
+   **Erledigt 17.10.** (Claude Code): Verlust je Stufe siehe „Rhythmus-Diagnose und
+   v4/v5-Vergleich“ – Tick-Auswahl (Doubles, Bursts, 1/2-Gleichförmigkeit) und Slider-Regeln
+   in `plan_objects`; Sternsuche streicht bei zu schweren Entwürfen Noten.
 2. **Den gemessenen Verlust gezielt beheben, danach Rhythmus v5 entscheiden.** Der aktuelle
    Rhythmus-Trainer lernt Notenstart/Slider/Sustain/Abstand und wählt den Checkpoint nach
    Noten-F1; Figuren und abschnittsweise musikalische Entscheidungen sind kein eigenes
    Lernziel. Vorplanungs-Abschnittswerte erreichen derzeit die Platzierung, nicht das
    Rhythmusmodell. Ein v5-Versuch sollte diese Lücken einzeln mit Vergleichsläufen prüfen.
+   **17.10.:** v5-strict (Quarter-Link-Kopf) verworfen; als Nächstes die Slider-Regeln
+   (`quick_release`/`kick_confidence`, Noten im Slider-Körper), dann die Sternsuche, dann ein
+   Rhythmusmodell mit Figurentyp (Double vs. Triple) als Lernziel.
 3. **Gesang zuerst verlässlich bewerten.** `vocals.py`, Tests, `scripts/vocal_stats.py` und
    `docs/gesang-rhythmus.md` existieren, werden aber nicht vom Generator benutzt. Pilot:
    171 Maps/30 Songs; nur 7 von 3.890 Abschnitten als gesangsgeführt gelabelt, VAD dagegen
@@ -606,9 +705,14 @@ Slidern, Slider-Anteil) mitlernen statt nachträglich anwenden.
 - Speicher: C: ~4 GB frei (!), D: ~65 GB frei. Datensatz: `D:\BeatMap-AI-Dataset`
   (~13.400 Sets mit Audio + `mel.npy`, `tags.json` Community-Tags, `catalog.json` aller
   38.048 ranked std-Sets) plus `data/`, `best_maps/` im Repo.
-- Tests: `.venv-rocm\Scripts\python.exe -m pytest -q` (38 Tests, alle grün am 25.09. abends).
+- Tests: `.venv-rocm\Scripts\python.exe -m pytest -q` (70 Tests, alle grün am 17.10.; auf CPU ~15 min).
 - Validierungs-Aufteilung immer nach `beatmap_ai.dataset.is_validation(song_key(bm))`.
 - Messwerkzeuge: `beatmap-ai evaluate`, `scripts/tune_threshold.py`, `scripts/map_stats.py`,
   `scripts/eval_sequence.py` (`--follow` = so wie die App), `scripts/human_agreement.py`,
   `scripts/pattern_stats.py` (torch-frei; Markdown oder `--json`, Referenz in `beatmap_ai/pattern_reference.json`).
+- Rhythmus-Diagnose (17.10.): `scripts/rhythm_holdout.py` (torch-frei, unberührte Validierungssongs),
+  `scripts/audit_rhythm_pipeline.py` (Stufen des App-Wegs, `--holdout`, `--force-selection`),
+  `scripts/compare_rhythm_models.py` (zwei Rhythmus-Checkpoints, nur Rhythmus),
+  `scripts/slider_reasons.py` (welche Regel Slider verhindert), `scripts/summarize_rhythm_audit.py`
+  (Tabellen, torch-frei); Zählweise in `beatmap_ai/rhythm_audit.py`.
 

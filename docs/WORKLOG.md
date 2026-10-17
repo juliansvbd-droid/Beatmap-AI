@@ -3,6 +3,50 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-10-17 ~16:45 Europe/Berlin – Claude Code (Nebensitzung): Rhythmus-Diagnose und v4/v5-Vergleich
+- Auftrag (aus der Hauptsitzung, Priorität 1 aus STATUS): Verlust der Rhythmusfiguren je
+  Generator-Stufe messen; v4 gegen `rhythm-v5-frozen-strict.pt` auf unberührten Songs mit gleichen
+  Seeds und gleicher Auswahlart; klären, warum v5 bei ALQUIMIA = v4.
+- Neu: `beatmap_ai/rhythm_audit.py` (torch-freie Zählung: Figuren nach `patterns._rhythm_metrics`,
+  Slider, Abstandsklassen, Pausen Ende→Start, F1), `scripts/rhythm_holdout.py` (185 von 1.266
+  Validierungssongs, die in keinem Log/Manifest/Bericht und keiner Standard-Auswahl vorkommen),
+  `scripts/compare_rhythm_models.py`, `scripts/slider_reasons.py` (spielt die Slider-Regeln von
+  `plan_objects` mit denselben Zufallszahlen nach, 99/99 exakt), `scripts/summarize_rhythm_audit.py`,
+  `tests/test_rhythm_audit.py`. `scripts/audit_rhythm_pipeline.py` erweitert: `--holdout`
+  (Menschen-Map als Ziel/Timing/Referenz), F1 je Stufe, Pausen, Stufe `reinforce_figures` mit
+  Diagnose, erster Rhythmus der Sternsuche, `--force-selection`, Checkpoint-Hashes. Generator,
+  App und `beatmap_ai/models/` unverändert.
+- Läufe (ROCm, nacheinander, 15:14–16:33): Rhythmus-Vergleich 99 Maps/30 Holdout-Songs; volle
+  Pipeline 6 Holdout-Songs × Insane/Expert mit v4 und v5; ALQUIMIA/ECLIPSER mit v5; 15
+  v4-Kandidaten mit v4; Slider-Gründe; ECLIPSER v4 mit Schwellen-Auswahl. Alles in
+  `D:\BeatMap-AI-Dataset\rhythm-audit-2026-10-17\` (`chain.log`, je Lauf `pipeline.json` + `.osu`).
+  Codex' ALQUIMIA/ECLIPSER-Läufe vom 29.09. wurden objektgenau reproduziert.
+- Ergebnis Stufen (Holdout, Insane / Expert, Mittel je Map): Mensch Doubles 2,98 / 4,09, Bursts
+  1,65 / 2,11, Slider 51 / 40 %; nach Tick-Auswahl 1,62 / 2,12 und 0,10 / 1,49; Slider nach
+  `plan_objects` 36 / 19 %; `shape_triples`, Render, Refrain-Kopien ändern ≤0,25 je 100, `follow`
+  +0,2–0,3 Doubles. Sternsuche streicht in 7/12 Maps 4–24 % der Noten (zu schwerer erster Entwurf →
+  weniger Sterne bei der Rhythmus-KI). Slider-Köpfe des Menschen: 37 % bei uns Slider, 31 % Kreis
+  wegen „½ Beat Pause nach Slider“ (davon 46 % Kick-Slider in genau unserem Rhythmus), 12 % kein
+  Platz, 11 % Kick-Regel, 8 % keine Note. Volle Tabelle in STATUS.
+- Ergebnis v4/v5: gemeinsame Ausgaben bitgleich; v5 ändert nur über `reinforce_figures` (≤5 %).
+  Rhythmus allein, 99 Maps: ΔF1 −0,0016 (95 % −0,0028 … −0,0005), 64× schlechter/33× besser;
+  volle Pipeline, 12 Maps, 12/12 gleiche Auswahl: F1 0,761 → 0,764 (5 besser/7 schlechter,
+  CI schließt 0 ein), Doubles 2,18 → 2,01 (Mensch 3,54), Triples 3,07 → 4,09 (3,78), Bursts
+  0,80 → 1,17 (1,88), Slider 27 % unverändert (45 %), Sternfehler 0,041 / 0,039.
+  ALQUIMIA: 220 BPM → 1/4 = 68 ms; 78/84 Ansatzpunkte mit Figuren-Kopf ≥0,5, aber keiner mit
+  hörbarer Folgenote (≥0,18) → 0 Zusatznoten. ECLIPSER Expert mit gleicher Auswahl (Schwelle):
+  v4 632 Obj./4,96★, v5 587/5,14★ (App-v4 nur per Dichte-Auswahl 5,60★ mit 968 Obj., 0 % Slider).
+- Empfehlung: v5-strict **verwerfen**; zuerst Slider-Regeln in `plan_objects` reparieren
+  (`quick_release`/`kick_confidence` nach Slider-Kopf des Modells statt fester Quote; Noten im
+  Slider-Körper), dann Sternsuche (bei zu schwer erst Abstände/Sprünge, dann Noten), dann
+  Rhythmus-KI mit Figurentyp als Lernziel. Jede Änderung mit `audit_rhythm_pipeline.py --holdout`
+  und `slider_reasons.py` gegen diese Läufe messen (Holdout-Songs nicht zum Nachjustieren
+  verbrauchen: für Feintuning andere Holdout-Songs aus `holdout_order` nehmen, Abschlussvergleich
+  auf frischen).
+- Grenzen: 6 Songs in der vollen Pipeline (ein Seed); Kandidaten-Songs ohne Menschen-Map und mit
+  verdoppelter BPM-Erkennung (9/15 ≥194 BPM) nur gegen Validierungs-Referenz. Volle Testsuite
+  70 bestanden (CPU). Nichts zugesagt.
+
 ## 2026-10-17 15:05 Europe/Berlin – Claude Code: „v4 Formen“ ist App-Standard
 - Nutzerwunsch (17.10.): „v4 Formen“ als Standard-Auswahl der Platzierungs-KI in der App;
   v2 bleibt wählbar („v2 (bisheriger Standard)“).
