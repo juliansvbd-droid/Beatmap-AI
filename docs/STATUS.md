@@ -1,9 +1,15 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-10-06 18:33 Europe/Rome, von Codex (Forschungsdokumentation)._
+_Zuletzt aktualisiert: 2026-10-17 11:07 Europe/Berlin, von Claude Code (GitHub-Abgleich, Rhythmus-v5-Code committet)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
+- **17.10., Claude Code: nichts läuft – GPU und Dateien sind frei.** Prozessprüfung: kein
+  BeatMap-AI-/PyTorch-Prozess aktiv (nur fremde Python-Tools). Lokaler Stand mit GitHub
+  abgeglichen (`4937ffd` reingeholt) und Codex' Rhythmus-v5-Code vom 29.09. nach grüner
+  Testsuite (69 bestanden, CPU, 15 min) als `ce1abc0` committet und gepusht. Das v5-Experiment ist
+  beendet, aber **nicht ausgewertet**: der v4/v5-Vergleich auf Holdout-Songs fehlt, kein
+  v5-Modell in `beatmap_ai/models/`, die App nutzt weiter Rhythmus v4. Details: WORKLOG 17.10.
 - **06.10., 18:33, Codex: öffentliche Forschungsdokumentation abgeschlossen.**
   README anhand von CLI/Generator und aktuellem Status korrigiert; Forschungsfrage,
   Evaluationsplan und Beitragsleitfaden ergänzt. Keine Code-/Modelländerung, kein
@@ -11,6 +17,38 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   unten bleiben erhalten. Keine Annahme bei Claude for Open Source zugesagt; aktuell
   fehlen eine Projektlizenz und belegte nachgelagerte Nutzung. Alter des GitHub-Kontos
   vor Bewerbung prüfen (Programmbedingungen: mindestens zwei Jahre).
+- **29.09. abends, Codex: Rhythmus-Diagnose und v5-Experiment – beendet (Stand 17.10.: Lauf vorbei, Code committet, Holdout-Vergleich offen).**
+  Geplant: reproduzierbare Zwischenstufen-Messung mit festen Songs/Seeds, gezielter
+  Generator- bzw. Modellschritt, Gesangsprüfung auf Roh-Audio und Abschlussvergleich.
+  Arbeitsdateien: `scripts/`, `beatmap_ai/rhythm.py`, ggf. `beatmap_ai/generator.py`,
+  `beatmap_ai/train.py`, `beatmap_ai/dataset.py`, `beatmap_ai/model.py`, `tests/`,
+  `docs/STATUS.md`, `docs/WORKLOG.md`; große Ergebnisse/Logs unter
+  `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29\`. Start ca. 21 Uhr Europe/Berlin.
+  Probelauf und erweiterter ROCm-Messlauf abgeschlossen (zusammen 3 Songs × 2
+  Schwierigkeiten). Logs `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29-smoke.log`
+  und `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29-baseline.log`, Ergebnisse
+  `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29\{smoke,baseline}\pipeline.json`.
+  Mel-Gesangsmessung abgeschlossen (22 Songs/32 Maps, Log
+  `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29-vocals-mel.log`). CPU-Roh-Audio-
+  Gesangsmessung auf denselben Maps abgeschlossen (Log
+  `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29-vocals-raw.log`).
+  Erster Trainingslauf nach Epoche 1 für Schwellenkalibrierung gestoppt (Log
+  `train.log`). Kalibrierter v5-Lauf abgeschlossen: beste Validierung
+  Noten-F1 0,739 (Start 0,740), Figuren-F1 0,665 (Start 0,418), 8 Epochen,
+  `--workers 0`. Modell `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29\rhythm-v5.pt`,
+  Log `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29\train-recalibrated.log`.
+  69 Tests bestanden. Erster v5-Mapvergleich abgeschlossen (Log `v5-problems.log`,
+  Ausgabe `v5-problems/pipeline.json`): ECLIPSER/Insane 564 → 407 Objekte,
+  daher trotz stabiler globaler F1 zu viel Grundrhythmus-Drift. Erster
+  Frozen-Lauf nach Epoche 6 gestoppt: BatchNorm-Mittelwerte drifteten noch
+  (`train-frozen.log`). Strikter Frozen-Lauf abgeschlossen: Noten-F1 0,740
+  unverändert, Figuren-F1 0,603 nach 10 Epochen, und sämtliche v4-Gewichte,
+  BatchNorm-Zustände und Notenschwellen bitgenau erhalten. Modell
+  `rhythm-v5-frozen-strict.pt`, Log `train-frozen-strict.log` im selben D:-Ordner.
+  Jetzt ROCm-Vergleich der zwei Problemsongs (Launcher-PID 25180,
+  Python-PID 27284, Log `v5-strict-problems.log`). Danach v4/v5-Vergleich
+  auf drei Trainings-Holdout-Songs.
+  (Sperre für andere Agenten aufgehoben, siehe 17.10.)
 - **29.09., 20:51, Codex: Projektprüfung abgeschlossen, keine eigenen Jobs aktiv.** Bei der
   Prozessprüfung lief kein Python-Prozess. Nur vorhandene Maps CPU-seitig nachgezählt
   (kein PyTorch importiert); Generator, App und Modelle unverändert. Aktuelle Empfehlung

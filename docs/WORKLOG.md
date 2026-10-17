@@ -3,6 +3,34 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-10-17 11:07 Europe/Berlin – Claude Code: Projektüberblick, GitHub-Abgleich, v5-Code committet
+- Auftrag des Nutzers: (1) sich so gut wie möglich über das Projekt informieren (`/delegate`,
+  Haiku-Subagents, nur lesend); (2) danach auf Nutzerwunsch GitHub-Stand reinholen,
+  Doku-Konflikt lösen, v5-Tests laufen lassen, Codex' Arbeit dokumentiert committen und pushen.
+- GitHub-Abgleich: `4937ffd` (06.10., Codex, nur Doku: README, `docs/RESEARCH.md`,
+  `CONTRIBUTING.md`) per Fast-Forward reingeholt; STATUS/WORKLOG von Hand zusammengeführt
+  (beide Seiten erhalten).
+- Tests (CPU, GPU versteckt, kein anderer BeatMap-Prozess aktiv): gezielte v5-Tests
+  (`test_rhythm_figures.py`, `test_dataset_filter.py`, `test_model.py`) 8 bestanden in 7:37 min;
+  ganze Suite **69 bestanden**, 0 Fehler, 15:14 min. Hinweis: die Suite braucht auf CPU ~15 min.
+- Commit `ce1abc0`: Codex' Rhythmus-v5-Arbeit vom 29.09. (Figuren-Kopf `--figure-head` mit
+  eingefrorenem v4-Rumpf, `beatmap_ai/rhythm_figures.py`, `reinforce_figures` in
+  `rhythm.plan_objects`/`generator.py`, Datensatzfilter für numerische Set-Ordner unter
+  `BeatMap-AI-Dataset`, `scripts/audit_rhythm_pipeline.py`, `vocal_stats.py --prefer-raw`,
+  Tests). Ohne v5-Checkpoint ist der neue Pfad wirkungslos; App-Verhalten unverändert.
+  Nachgetragener Eintrag für Codex' Arbeit steht weiter unten (29.09. abends).
+- STATUS: veralteten Laufeintrag von Codex als beendet markiert (PIDs 25180/27284 existierten
+  nicht mehr, letzte Aktivität 29.09. ~22 Uhr); „nichts läuft“ eingetragen.
+- Review-Hinweise zum v5-Code (nicht behoben, nur notiert): Auswahl-Gate erlaubt im nicht
+  eingefrorenen Pfad −0,01 Noten-F1; Figurenschwelle nur aus dem Checkpoint (keine CLI-Option);
+  Datensatzfilter verwirft nicht-numerische Ordner ohne Log-Zeile; `test_dataset_filter.py`
+  prüft nur den Positivfall; `quarter_link_targets` sortiert das Raster bei jedem Sample neu.
+- Auffällig: App-Standard ist weiter „v2 (Standard)“ (`ui.py`), obwohl der Nutzer am 29.09.
+  „v4 Formen“ deutlich besser fand. Nicht geändert (Entscheidung des Nutzers).
+- Nächste sinnvolle Schritte (nicht zugesagt): v4/v5-Vergleich auf zurückgehaltenen Songs mit
+  festen Seeds und gleicher Auswahlart (Schwelle vs. Dichte); Rhythmus-Diagnose (Priorität 1)
+  mit `scripts/audit_rhythm_pipeline.py`; Entscheidung über den App-Standard v2 → v4 Formen.
+
 ## 2026-10-06 18:33 Europe/Rome – Codex: Forschungsprofil und OSS-Bewerbung
 - Auftrag: GitHub-Repo für eine ehrliche Claude-for-Open-Source-Bewerbung verbessern,
   Chancen einschätzen und zwei englische Formularentwürfe formulieren.
@@ -23,6 +51,29 @@ Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zu
 - Programm am 06.10. geprüft: Ecosystem Impact Track erwartet bestehende Bedeutung,
   nicht allein Zukunftspotenzial. Keine Bewerbung abgeschickt; keine Genehmigung
   zugesagt. Englische Entwürfe und realistische Einordnung werden im Chat geliefert.
+
+## 2026-09-29 ~21:00–22:00 Europe/Berlin – Codex: Rhythmus-Diagnose und v5-Figuren-Kopf (nachgetragen von Claude Code am 17.10.)
+- Codex hat vor dem Aufhören keinen Eintrag geschrieben; rekonstruiert aus seinem
+  STATUS-Laufeintrag, dem Code-Diff und `D:\BeatMap-AI-Dataset\rhythm-v5-2026-09-29\`.
+- Code (committet am 17.10. als `ce1abc0`): Rhythmusmodell mit optionalem 5. Ausgang „quarter link“
+  (folgt auf diese Note eine Note 1/4 Beat später?), `train --figure-head` mit Warmstart aus
+  v4 (Rumpf und Ausgänge 0–3 eingefroren, BatchNorm fest), Checkpoint-Auswahl nach
+  Noten-F1 + 0,05 × Figuren-F1; `rhythm_figures.reinforce_figures` ergänzt beim Erzeugen
+  höchstens 5 % 1/4-Noten; `scripts/audit_rhythm_pipeline.py` zählt Rhythmusfiguren je
+  Pipeline-Stufe; Gesangsmessung auf Roh-Audio (`vocal_stats.py --prefer-raw`).
+- Messungen: Smoke- und Baseline-Lauf (3 Songs × 2 Schwierigkeiten). Gesang auf 22 Songs/
+  746 Abschnitten: Mel-Cache 1 Gesang/735 Beat/10 gemischt, Roh-Audio 2/734/10 – als
+  Steuersignal weiter unbrauchbar.
+- Training (`--workers 0`): `rhythm-v5.pt` Noten-F1 0,739 (Start 0,740), Figuren-F1 0,665
+  (Start 0,418), 8 Epochen – verschob aber den Grundrhythmus (ECLIPSER Insane 564 → 407
+  Objekte). Frozen-Lauf nach Epoche 6 abgebrochen (BatchNorm driftete).
+  `rhythm-v5-frozen-strict.pt`: Noten-F1 0,740, v4-Gewichte/Schwellen bitgleich, Figuren-F1
+  0,603, 10 Epochen. Validierung nur 16 Maps.
+- Vergleich `v5-strict-problems` (ALQUIMIA, ECLIPSER × Insane/Expert): ALQUIMIA identisch mit
+  v4; ECLIPSER Insane Doubles/Triples/Bursts je 100: 0,7/6,7/2,5 → 0,9/7,4/2,0 (564 → 556
+  Objekte); ECLIPSER Expert nicht vergleichbar (v4 Dichte-, v5 Schwellen-Auswahl, 968 vs. 587
+  Objekte). Der geplante v4/v5-Vergleich auf drei Holdout-Songs wurde nicht mehr gemacht.
+- Ergebnis: kein Nachweis, dass v5 besser ist; nicht in die App übernommen.
 
 ## 2026-09-29 20:51 Europe/Berlin – Codex: Projektprüfung und nächste Schritte
 - Auftrag: Projekt ansehen und nächsten Ansatz empfehlen. Status/Worklog, Rhythmus,
