@@ -456,7 +456,7 @@ class BeatmapApp(tk.Tk):
         metadata.pack(fill="x", pady=(0, 8))
         self._labeled_entry(metadata, "Künstler (optional)", self.artist_var, 0, 0)
         self._labeled_entry(metadata, "Songtitel (optional)", self.title_var, 0, 1)
-        ttk.Checkbutton(card, text="KI verwenden (empfohlen: Sequence v2 + Conformer v4)",
+        ttk.Checkbutton(card, text="KI verwenden (empfohlen; Platzierung siehe „Platzierungs-KI“)",
                         variable=self.use_model_var).pack(anchor="w", pady=(0, 2))
         tk.Label(card, textvariable=self.sequence_model_info_var,
                  bg=SURFACE, fg=GREEN, font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 8))

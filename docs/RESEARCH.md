@@ -28,8 +28,8 @@ does not make a reported result independently reproducible from this repository.
 | Vocal analysis prototype | `beatmap_ai/vocals.py`, `docs/gesang-rhythmus.md` | Study when human mapping follows vocals; not integrated into generation |
 | Validity checks | `tests/` | Catch timing, serialization and geometry regressions |
 
-The default application uses sequence v2. The opt-in "v4 Formen" configuration
-combines a newer sequence model with planning and explicit shape/density controls.
+Since 2026-10-17 the desktop app defaults to “v4 Formen” (sequence v4 plus pre-planner, shape guide, human-density limit and jump control); the CLI default is still sequence v2.
+The “v4 Formen” configuration combines a newer sequence model with planning and explicit shape/density controls.
 The system is hybrid; improvements cannot automatically be credited to the learned
 model rather than those controls.
 
