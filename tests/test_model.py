@@ -47,3 +47,28 @@ def test_train_on_generated_maps_and_generate(song_mp3, tmp_path):
 
     out = generate(song_mp3, tmp_path / "ai.osz", ["hard"], model_path=ckpt, log=lambda *_: None)
     assert out.exists()
+
+
+def test_figure_head_warmstart_keeps_existing_outputs(song_mp3, tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    generate(song_mp3, data / "set.osz", ["hard", "insane"],
+             model_path=None, placement_path=None, critic_path=None, log=lambda *_: None)
+    base = train(data, tmp_path / "base.pt", epochs=1, steps_per_epoch=1, batch_size=2,
+                 chunk_seconds=4, hidden=16, cache_dir=tmp_path / "cache",
+                 workers=0, device="cpu", log=lambda *_: None)
+    original, original_threshold = load_checkpoint(base)
+    updated = train(data, tmp_path / "figures.pt", epochs=1, steps_per_epoch=2,
+                    batch_size=2, cache_dir=tmp_path / "cache", init_model=base,
+                    workers=0, device="cpu", figure_head=True, log=lambda *_: None)
+    model, updated_threshold = load_checkpoint(updated)
+    assert model.outputs == 5
+    assert updated_threshold == original_threshold
+    for name, value in original.state_dict().items():
+        new_value = model.state_dict()[name]
+        if name.startswith("head."):
+            new_value = new_value[:4]
+        assert torch.equal(new_value, value), name
+    out = generate(song_mp3, tmp_path / "figures.osz", ["hard"], model_path=updated,
+                   placement_path=None, critic_path=None, log=lambda *_: None)
+    assert out.exists()

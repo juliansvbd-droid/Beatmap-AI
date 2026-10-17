@@ -256,6 +256,8 @@ def plan_objects(
     stars: float | None = None,
     variety: float = RHYTHM_VARIETY,
     human_constraints: bool = True,
+    figure_probs: np.ndarray | None = None,
+    figure_threshold: float = 0.5,
 ) -> list[PlannedObject]:
     """Build the full rhythm for one difficulty.
 
@@ -298,6 +300,16 @@ def plan_objects(
                 ticks = shape_triples(ticks, scores, preset.divisor)
     if len(ticks) == 0:
         return []
+    if figure_probs is not None and note_probs is not None and selection == "threshold":
+        from .rhythm_figures import reinforce_figures
+        link_scores = sample_peak(figure_probs, grid.score_times if grid.score_times is not None
+                                  else grid.times, radius=1)
+        ticks = reinforce_figures(
+            ticks, scores, link_scores, divisor=preset.divisor,
+            min_gap_beats=preset.min_gap_beats,
+            max_run=preset.max_run, threshold=threshold,
+            link_threshold=figure_threshold,
+        )
     intensity = np.clip(sample_peak(features.onset, grid.times + ONSET_LAG_MS, radius=2), 0.0, 1.0)
 
     objects: list[PlannedObject] = []

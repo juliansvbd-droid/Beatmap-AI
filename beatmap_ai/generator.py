@@ -236,7 +236,9 @@ def generate_beatmap(
         plan = plan_objects(features, timing, wanted, rng, outputs.get("note"), outputs.get("slider"),
                             note_threshold, mode, outputs.get("sustain"), outputs.get("spacing"),
                             stars, variety if mode == selection else 0.0,
-                            human_constraints=crutches)
+                            human_constraints=crutches,
+                            figure_probs=outputs.get("figure_link"),
+                            figure_threshold=outputs.get("figure_threshold", 0.5))
         if repeats and not sequence:
             plan = copy_rhythm(plan, repeats, timing.beat_length / preset.divisor,
                                4 * timing.beat_length)

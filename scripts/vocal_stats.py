@@ -143,17 +143,19 @@ def _load_source(source: AudioSource) -> tuple[np.ndarray | None, np.ndarray | N
         return load_audio(path), None
 
 
-def _analyze_source(source: AudioSource, roots: list[Path]) -> tuple[VocalAnalysis, str]:
+def _analyze_source(source: AudioSource, roots: list[Path],
+                    *, prefer_raw: bool = False) -> tuple[VocalAnalysis, str]:
     if source.path.name.lower() == "mel.npy":
         return analyze_mel(np.load(source.path, mmap_mode="r")), "mel_file"
-    adjacent = source.path.parent / "mel.npy"
-    if source.member is None and adjacent.is_file():
-        return analyze_mel(np.load(adjacent, mmap_mode="r")), "adjacent_mel_cache"
-    cache_name = song_id(source.key) + ".npy"
-    for root in roots:
-        cached = root / ".beatmap_ai_cache" / cache_name
-        if cached.is_file():
-            return analyze_mel(np.load(cached, mmap_mode="r")), "feature_cache"
+    if not prefer_raw:
+        adjacent = source.path.parent / "mel.npy"
+        if source.member is None and adjacent.is_file():
+            return analyze_mel(np.load(adjacent, mmap_mode="r")), "adjacent_mel_cache"
+        cache_name = song_id(source.key) + ".npy"
+        for root in roots:
+            cached = root / ".beatmap_ai_cache" / cache_name
+            if cached.is_file():
+                return analyze_mel(np.load(cached, mmap_mode="r")), "feature_cache"
     waveform, mel = _load_source(source)
     if mel is not None:
         return analyze_mel(mel), "mel_file"
@@ -503,7 +505,8 @@ def _summarize(rows: list[dict], map_counts: dict, timings: list[float], random_
 
 
 def evaluate(roots: list[Path], *, per_bucket: int = 50, seed: int = 2026,
-             random_shifts: int = 100, dry_run: bool = False) -> dict:
+             random_shifts: int = 100, dry_run: bool = False,
+             prefer_raw: bool = False) -> dict:
     # Keep BLAS/FFT pools to one thread while the night run is using the machine.
     try:
         from threadpoolctl import threadpool_limits
@@ -530,7 +533,8 @@ def evaluate(roots: list[Path], *, per_bucket: int = 50, seed: int = 2026,
     source_modes: dict[str, int] = defaultdict(int)
     done = 0
     for source_key, source_records in grouped.items():
-        analysis, source_mode = _analyze_source(source_by_key[source_key], roots)
+        analysis, source_mode = _analyze_source(source_by_key[source_key], roots,
+                                                prefer_raw=prefer_raw)
         source_modes[source_mode] += 1
         timings.append(analysis.runtime_seconds)
         duration_ms = analysis.n_frames * 1000.0 / analysis.frame_rate
@@ -550,6 +554,7 @@ def evaluate(roots: list[Path], *, per_bucket: int = 50, seed: int = 2026,
     map_counts["maps_with_sections"] = len({row["map"] for row in rows})
     result = _summarize(rows, map_counts, timings, random_shifts)
     result["seed"] = seed
+    result["prefer_raw"] = prefer_raw
     return result
 
 
@@ -564,6 +569,8 @@ def main() -> None:
     parser.add_argument("--random-shifts", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true",
                         help="Only select and count validation maps; do not decode audio.")
+    parser.add_argument("--prefer-raw", action="store_true",
+                        help="Decode original audio even when a mel cache exists.")
     parser.add_argument("--output", type=Path,
                         help="Optional JSON output path, preferably under D:\\BeatMap-AI-Dataset\\vocals.")
     args = parser.parse_args()
@@ -573,7 +580,8 @@ def main() -> None:
         parser.error("--random-shifts must be positive")
     roots = [path if path.is_absolute() else (REPO_ROOT / path) for path in args.roots]
     result = evaluate(roots, per_bucket=args.per_bucket, seed=args.seed,
-                      random_shifts=args.random_shifts, dry_run=args.dry_run)
+                      random_shifts=args.random_shifts, dry_run=args.dry_run,
+                      prefer_raw=args.prefer_raw)
     payload = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

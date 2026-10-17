@@ -101,6 +101,8 @@ def main(argv: list[str] | None = None) -> None:
                     help="length of the audio excerpts the model trains on")
     tr.add_argument("--cache-dir")
     tr.add_argument("--init-model", help="initialize from an existing checkpoint and fine-tune it")
+    tr.add_argument("--figure-head", action="store_true",
+                    help="train an additional quarter-beat figure prediction head (v5 experiment)")
     tr.add_argument("--device", help='e.g. "cuda" (NVIDIA or AMD ROCm), "cpu" or "directml"; '
                                      "default: GPU if available")
     tr.add_argument("--workers", type=int, default=os.cpu_count() or 1,
@@ -227,7 +229,8 @@ def main(argv: list[str] | None = None) -> None:
               batch_size=args.batch_size, lr=args.lr, hidden=args.hidden,
               arch=args.arch, layers=args.layers, max_val_maps=args.val_maps,
               chunk_seconds=args.chunk_seconds, cache_dir=args.cache_dir, device=args.device,
-              workers=args.workers, seed=args.seed, init_model=args.init_model)
+              workers=args.workers, seed=args.seed, init_model=args.init_model,
+              figure_head=args.figure_head)
 
 
 if __name__ == "__main__":

@@ -72,12 +72,14 @@ def iter_beatmap_texts(root: str | Path) -> Iterator[tuple[str, str, AudioSource
     whose audio (or precomputed spectrogram) exists. ``stamp`` changes when the file does."""
     root = Path(root)
     def project_training_input(path: Path) -> bool:
-        # Night-run outputs live below the dataset root, but are generated examples,
-        # never human training data for a later run.
+        # The large dataset uses numeric set directories. Its other top-level
+        # folders contain generated maps, comparisons, and caches, not human data.
         try:
             relative = path.relative_to(root)
         except ValueError:
             return True
+        if root.name.lower() == "beatmap-ai-dataset":
+            return bool(relative.parts and relative.parts[0].isdecimal())
         return not relative.parts or relative.parts[0].lower() != "night"
 
     for osz in sorted(path for path in root.rglob("*.osz") if project_training_input(path)):
@@ -284,10 +286,16 @@ def build_examples(root: str | Path | list[str | Path], cache_dir: str | Path | 
                if not p.exists() and not p.with_suffix(".failed").exists()]
     if missing:
         log(f"computing spectrograms for {len(missing)} songs")
-        with ProcessPoolExecutor(workers) as pool:
-            for (source, _), error in zip(missing, pool.map(_cache_mel, *zip(*missing))):
+        if workers <= 1:
+            results = (_cache_mel(source, path) for source, path in missing)
+            for (source, _), error in zip(missing, results):
                 if error:
                     log(f"skipping {source.key}: {error}")
+        else:
+            with ProcessPoolExecutor(workers) as pool:
+                for (source, _), error in zip(missing, pool.map(_cache_mel, *zip(*missing))):
+                    if error:
+                        log(f"skipping {source.key}: {error}")
     n_frames = {s: np.load(p, mmap_mode="r").shape[1] for s, p in mel_paths.items() if p.exists()}
     return [finish_example(ex, mel_paths[sources[id(ex)]], n_frames[sources[id(ex)]])
             for ex in examples if sources[id(ex)] in n_frames]
@@ -348,11 +356,13 @@ class ChunkSampler:
     """Draws random fixed-length training crops from the examples."""
 
     def __init__(self, examples: list[MapExample], chunk_frames: int, seed: int = 0,
-                 conditions: list[str] | None = None, balance: bool = True):
+                 conditions: list[str] | None = None, balance: bool = True,
+                 figures: bool = False):
         self.examples = examples
         self.chunk = chunk_frames
         self.rng = np.random.default_rng(seed)
         self.conditions = conditions
+        self.figures = figures
         # Draw maps so every star level is trained on, not only the common ones: each
         # half-star bucket gets weight proportional to the square root of its size.
         stars = np.array([(ex.style or {}).get("stars", np.nan) for ex in examples], dtype=float)
@@ -393,6 +403,8 @@ class ChunkSampler:
     def batch(self, size: int) -> dict[str, np.ndarray]:
         out = {k: [] for k in ("mel", "beat", "cond", "note", "slider", "mask",
                                "sustain", "spacing", "spacing_mask")}
+        if self.figures:
+            out["figure_link"], out["figure_mask"] = [], []
         for _ in range(size):
             i = int(self.rng.choice(len(self.examples), p=self.weights))
             ex = self.examples[i]
@@ -412,4 +424,9 @@ class ChunkSampler:
             out["sustain"].append(sustain)
             out["spacing"].append(spacing)
             out["spacing_mask"].append(spacing_mask)
+            if self.figures:
+                from .rhythm_figures import quarter_link_targets
+                figure_link, figure_mask = quarter_link_targets(ex, start, self.chunk)
+                out["figure_link"].append(figure_link)
+                out["figure_mask"].append(figure_mask)
         return {k: np.stack(v) for k, v in out.items()}

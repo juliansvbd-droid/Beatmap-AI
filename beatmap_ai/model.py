@@ -105,8 +105,8 @@ class BeatmapNet(nn.Module):
             self.head = nn.Linear(2 * hidden, 2)
         else:
             self.blocks = nn.ModuleList(ConformerBlock(hidden) for _ in range(layers))
-            # note, slider start, and with 4 outputs also slider held (sustain) and
-            # log distance snap (spacing, a regression output)
+            # note, slider start, slider held, log distance snap; optional fifth
+            # output predicts a quarter-beat link from this circle to the next.
             self.head = nn.Linear(hidden, outputs)
 
     @property
@@ -157,13 +157,19 @@ class BeatmapNet(nn.Module):
         return self.head(h)
 
 
-def save_checkpoint(model: BeatmapNet, path: str | Path, threshold: float = 0.5) -> None:
+def save_checkpoint(model: BeatmapNet, path: str | Path, threshold: float = 0.5,
+                    figure_threshold: float | None = None) -> None:
     # Checkpoints stay portable even when training uses a mixed CPU/DirectML model.
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     state_dict = {name: tensor.detach().cpu() for name, tensor in model.state_dict().items()}
-    torch.save({"config": model.config, "state_dict": state_dict,
-                "threshold": threshold}, path)
+    payload = {"config": model.config, "state_dict": state_dict,
+               "threshold": threshold}
+    if figure_threshold is not None:
+        payload["figure_threshold"] = float(figure_threshold)
+    if getattr(model, "thresholds_by_stars", None):
+        payload["thresholds_by_stars"] = model.thresholds_by_stars
+    torch.save(payload, path)
 
 
 def load_checkpoint(path: str | Path, device: str = "cpu") -> tuple[BeatmapNet, float]:
@@ -173,6 +179,7 @@ def load_checkpoint(path: str | Path, device: str = "cpu") -> tuple[BeatmapNet, 
     model.to(device).eval()
     # Thresholds tuned on generated maps per star range (scripts/tune_threshold.py).
     model.thresholds_by_stars = ckpt.get("thresholds_by_stars") or {}
+    model.figure_threshold = float(ckpt.get("figure_threshold", 0.5))
     return model, float(ckpt.get("threshold", 0.5))
 
 
@@ -248,4 +255,7 @@ def predict_all(model: BeatmapNet, features: AudioFeatures, grid: BeatGrid,
     if probs.shape[1] >= 4:
         out["sustain"] = probs[:, 2]
         out["spacing"] = np.exp(probs[:, 3])
+    if probs.shape[1] >= 5:
+        out["figure_link"] = probs[:, 4]
+        out["figure_threshold"] = float(getattr(model, "figure_threshold", 0.5))
     return out
