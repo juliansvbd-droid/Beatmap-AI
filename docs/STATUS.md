@@ -1,6 +1,6 @@
 # Projektstand BeatMap-AI
 
-_Zuletzt aktualisiert: 2026-10-17 11:07 Europe/Berlin, von Claude Code (GitHub-Abgleich, Rhythmus-v5-Code committet)._
+_Zuletzt aktualisiert: 2026-10-17 15:05 Europe/Berlin, von Claude Code (App-Standard v4 Formen)._
 Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
 
 ## Currently running / in progress
@@ -207,9 +207,8 @@ Jeder Agent aktualisiert diese Datei, bevor er aufhört (siehe `AGENTS.md`).
   interpolierende/früh abbrechende Sternsuche (17 % schneller, Sternwert öfter daneben),
   fp16 (16 % schneller, größere Abweichungen). Rest ist GPU-Startaufwand pro Schritt (~10 ms);
   nächster Hebel: mehrere Varianten (Sprungstufen, Best-of-4-Kandidaten) gleichzeitig rechnen.
-- **Seit 29.09.: Auswahl „Platzierungs-KI“** in der App: „v2 (Standard)“ (unverändert) oder
-  „v4 Formen“ = `beatmap_ai/models/sequence-v4.pt` (fp16-Kopie) + `models/planner.pt` +
-  `--shape-guide --human-density --jump-control`. Hinweis: bei manchen Songs trifft v4 Formen den
+- **Seit 17.10.: „v4 Formen“ ist Standard der „Platzierungs-KI“ in der App** (Nutzerentscheidung; vorher seit 29.09. Option). Auswahl: „v4 Formen (Standard)“ = `beatmap_ai/models/sequence-v4.pt` (fp16-Kopie) + `models/planner.pt` + `--shape-guide --human-density --jump-control`, oder „v2 (bisheriger Standard)“. Die CLI nutzt ohne Optionen weiter v2.
+  Hinweis: bei manchen Songs trifft v4 Formen den
   Sternwert nicht ganz (z. B. GUERREIRO Expert 5,1★ statt 5,6★), weil die Dichte-Grenze Vorrang hat.
 | Aufgabe | Datei | Parameter | Stand |
 |---|---|---|---|

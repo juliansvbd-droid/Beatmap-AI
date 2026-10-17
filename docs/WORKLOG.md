@@ -3,6 +3,18 @@
 Jeder Agent trägt hier vor dem Aufhören ein, was er gemacht hat (siehe `AGENTS.md`).
 Format: `## Datum Uhrzeit – Agent` + Änderungen, Ergebnisse, Halbfertiges, Zusagen.
 
+## 2026-10-17 15:05 Europe/Berlin – Claude Code: „v4 Formen“ ist App-Standard
+- Nutzerwunsch (17.10.): „v4 Formen“ als Standard-Auswahl der Platzierungs-KI in der App;
+  v2 bleibt wählbar („v2 (bisheriger Standard)“).
+- Geändert: `beatmap_ai/ui.py` (Reihenfolge/Default/Beschriftung der Auswahl, Kommentar,
+  Hinweistext im Generieren-Tab), README (GUI-Abschnitt), STATUS („Was die App gerade benutzt“).
+- CLI unverändert: `beatmap-ai generate` ohne Optionen nutzt weiter `models/sequence.pt` (v2);
+  v4 Formen dort mit `--sequence beatmap_ai/models/sequence-v4.pt --planner
+  beatmap_ai/models/planner.pt --shape-guide --human-density --jump-control`.
+- Geprüft: `py_compile` und AST-Prüfung der Auswahlliste; keine Tests mit PyTorch ausgeführt,
+  weil parallel die Session „Rhythmus-Diagnose“ im selben Ordner die GPU nutzen kann.
+  Hinweis: v4 Formen ist langsamer als v2 und trifft bei manchen Songs den Sternwert nicht ganz.
+
 ## 2026-10-17 11:07 Europe/Berlin – Claude Code: Projektüberblick, GitHub-Abgleich, v5-Code committet
 - Auftrag des Nutzers: (1) sich so gut wie möglich über das Projekt informieren (`/delegate`,
   Haiku-Subagents, nur lesend); (2) danach auf Nutzerwunsch GitHub-Stand reinholen,

@@ -43,9 +43,10 @@ Beatmaps erzeugen und die KI mit lokalen Beatmap-Sammlungen weitertrainieren (me
 Ordner mit `;` trennen). Die Trainings-Voreinstellungen richten sich nach dem erkannten
 Rechengerät (ROCm/CUDA, DirectML oder CPU). Alle Dateien bleiben auf deinem PC.
 
-Bei „Platzierungs-KI“ bleibt **v2 (Standard)** die Voreinstellung. **v4 Formen**
-ist eine experimentelle Option mit Vorplanung, Formführung und Dichtebegrenzung;
-sie kann den gewünschten Sternwert verfehlen. Mehr Durchgänge und Song-Passung
+Bei „Platzierungs-KI“ ist **v4 Formen** seit 17.10.2026 die Voreinstellung der App.
+Es ist eine Mischung aus Modell und Regeln mit Vorplanung, Formführung und
+Dichtebegrenzung; die App bietet weiter **v2** („v2 (bisheriger Standard)“) an.
+v4 Formen kann den gewünschten Sternwert verfehlen. Mehr Durchgänge und Song-Passung
 brachten im bisherigen kleinen Vergleich keinen messbaren Qualitätsgewinn.
 
 Alternativ lässt sich die Oberfläche aus einer aktivierten Python-Umgebung mit
@@ -153,9 +154,10 @@ beatmap-ai generate song.mp3 --sequence beatmap_ai/models/sequence-v4.pt \
 
 If the file name looks like `Artist - Title.mp3`, the metadata is filled in from it.
 
-The GUI defaults to sequence v2; select **v4 Formen** explicitly to use the experimental
-configuration above. The default refinement count is one pass; higher values run more
-candidate refinements per section. The CLI also defaults to the bundled sequence v2.
+The GUI defaults to **v4 Formen** (the configuration above) since 17 Oct 2026; select
+**v2** for the previous default. The default refinement
+count is one pass; higher values run more candidate refinements per section. The CLI
+`generate` without these options still uses the bundled sequence v2.
 Planner and song-fit checkpoints are opt-in.
 
 ## Training the AI on real beatmaps

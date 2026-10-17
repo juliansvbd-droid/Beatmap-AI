@@ -44,13 +44,14 @@ CRITIC_CHOICES = (
 # Placement model. "v4 Formen" (29.09.): sequence v4 with the pre-planner, planned jump
 # shapes, ranked note density and bigger jumps through the jump-size control -- on 15 songs
 # fewer P95 outliers than v3 (Expert 19.8 vs 28.0) and stars/density close to ranked maps
-# (docs/STATUS.md). v2 stays the default until the user decides otherwise.
+# (docs/STATUS.md). The user chose "v4 Formen" as the app default on 2026-10-17; v2 stays
+# selectable. The first entry is the default. The CLI defaults are unchanged (still v2).
 MODELS = Path(__file__).parent / "models"
 PLACEMENT_CHOICES = (
-    ("v2 (Standard)", ()),
-    ("v4 Formen (neu, Sterne und größere Sprünge)",
+    ("v4 Formen (Standard)",
      ("--sequence", str(MODELS / "sequence-v4.pt"), "--planner", str(MODELS / "planner.pt"),
       "--shape-guide", "--human-density", "--jump-control")),
+    ("v2 (bisheriger Standard)", ()),
 )
 # Where the models run when generating (the CLI's --device).
 DEVICE_CHOICES = (
@@ -357,7 +358,7 @@ class BeatmapApp(tk.Tk):
         self.passes_var = tk.IntVar(value=1)
         self.songfit_var = tk.BooleanVar(value=False)
         self.sequence_model_info_var = tk.StringVar(
-            value="Platzierung: siehe „Platzierungs-KI“ (Standard v2; „v4 Formen“ bringt die Vorplanung mit).")
+            value="Platzierung: siehe „Platzierungs-KI“ (Standard „v4 Formen“; „v2“ ist weiter wählbar).")
 
         card = self._card(self.generate_page, "1. Song auswählen",
                           "Unterstützt MP3 und OGG. Der Künstler und Titel können aus „Künstler - Titel.mp3“ übernommen werden.")
